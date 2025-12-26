@@ -3,9 +3,14 @@ import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Lead, MessageLog, Integrations } from '../types';
-import { TrendingUp, Users, Clock, ArrowUpRight, Sparkles, Lightbulb, Loader2, RefreshCw, AlertTriangle, CheckCircle2, MessageSquare, PlusCircle, ShieldAlert, Zap, Thermometer, ListTodo, ChevronRight, Activity, Target, ShieldCheck, Database, Wifi, Globe, PhoneCall, Facebook } from 'lucide-react';
+import { 
+  TrendingUp, Users, Clock, ArrowUpRight, Sparkles, Lightbulb, 
+  Loader2, RefreshCw, Target, Activity, Database, CheckCircle2, 
+  MessageSquare, Layers, BarChart3, ArrowRight
+} from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { cn, formatDate } from '../lib/utils';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 
 interface DashboardProps {
   leads: Lead[];
@@ -18,20 +23,40 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
   const [isGenerating, setIsGenerating] = useState(false);
   const [aiInsight, setAiInsight] = useState<string | null>(null);
 
-  const criticalLeads = leads.filter(l => l.agingStatus === 'critical');
   const totalLeads = leads.length;
+  const newLeadsToday = leads.filter(l => {
+    const today = new Date();
+    const leadDate = new Date(l.createdAt);
+    return leadDate.toDateString() === today.toDateString();
+  }).length;
+  
   const wonLeads = leads.filter(l => l.status === 'Won').length;
   const conversionRate = totalLeads > 0 ? Math.round((wonLeads / totalLeads) * 100) : 0;
+  
+  const criticalLeads = leads.filter(l => l.agingStatus === 'critical').length;
+
+  // Prepare chart data
+  const stageData = [
+    { name: 'Inquiry', value: leads.filter(l => l.stage === 'Inquiry').length },
+    { name: 'Contacted', value: leads.filter(l => l.stage === 'First Contact').length },
+    { name: 'Viewing', value: leads.filter(l => l.stage === 'Property Viewing').length },
+    { name: 'Offer', value: leads.filter(l => l.stage === 'Offer Made').length },
+    { name: 'Contract', value: leads.filter(l => l.stage === 'Contract').length },
+    { name: 'Closed', value: leads.filter(l => l.stage === 'Closed').length },
+  ];
 
   const generateInsights = async () => {
     setIsGenerating(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Perform a Real Estate pipeline audit. Critical: ${criticalLeads.length}. Conversion: ${conversionRate}%. Provide 3 strategic insights.`;
-      const response = await ai.models.generateContent({ model: 'gemini-3-flash-preview', contents: prompt });
+      const prompt = `Analyze this real estate pipeline: ${totalLeads} total leads, ${wonLeads} won, ${criticalLeads} at risk. Give 3 short, high-impact tactical suggestions for the agent.`;
+      const response = await ai.models.generateContent({ 
+        model: 'gemini-3-flash-preview', 
+        contents: prompt 
+      });
       setAiInsight(response.text || '');
     } catch (error) {
-      setAiInsight("Unable to generate analysis.");
+      setAiInsight("Strategy engine temporarily offline.");
     } finally { setIsGenerating(false); }
   };
 
@@ -42,115 +67,228 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
             <Database className="w-10 h-10 text-rose-500" />
          </div>
          <div className="max-w-md space-y-2">
-            <h2 className="text-3xl font-black text-slate-900">Workspace Pending</h2>
-            <p className="text-slate-500 font-medium">We couldn't reach your Supabase tables. Ensure your database is initialized.</p>
+            <h2 className="text-3xl font-black text-slate-900">Workspace Syncing</h2>
+            <p className="text-slate-500 font-medium">Re-establishing connection with your database tables...</p>
          </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8 pb-12">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Pipeline Pulse</h2>
-          <p className="text-slate-500 mt-1">Real-time behavior monitoring for your buyer database.</p>
+          <h2 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard Overview</h2>
+          <p className="text-slate-500 mt-1">Holistic performance tracking for your real estate pipeline.</p>
         </div>
-        
-        {/* Real-time Status Bar */}
-        <div className="flex items-center gap-3 bg-white p-2 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-                <Wifi className="w-3 h-3" /> Supabase Live
-            </div>
-            {integrations?.facebook?.connected && (
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-blue-50 text-blue-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-blue-100">
-                    <Facebook className="w-3 h-3" /> Meta Webhook Active
-                </div>
-            )}
-            {integrations?.sms?.enabled && (
-                <div className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 text-indigo-600 rounded-lg text-[10px] font-black uppercase tracking-widest border border-indigo-100">
-                    <PhoneCall className="w-3 h-3" /> Twilio Ready
-                </div>
-            )}
+        <div className="flex items-center gap-3">
+            <Button variant="outline" className="rounded-2xl h-12 bg-white border-slate-200">
+                <RefreshCw className="w-4 h-4 mr-2" /> Sync Data
+            </Button>
+            <Button onClick={generateInsights} className="rounded-2xl h-12 bg-slate-900 text-white shadow-xl shadow-slate-900/20" isLoading={isGenerating}>
+                <Sparkles className="w-4 h-4 mr-2 text-emerald-400" /> AI Strategy
+            </Button>
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-12">
-        <Card className="md:col-span-8 bg-gradient-to-br from-[#0f2925] to-[#1a3834] text-white border-none shadow-2xl relative overflow-hidden rounded-[40px]">
-             <div className="absolute top-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-[100px] -mr-48 -mt-48" />
-             <CardContent className="p-10 relative z-10">
-                <div className="flex flex-col md:flex-row items-start justify-between gap-8">
-                    <div className="space-y-6 max-w-lg">
-                        <div className="inline-flex items-center gap-2 bg-emerald-500/20 text-emerald-400 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-500/30">
-                            <Sparkles className="w-3.5 h-3.5" /> Live Intelligence
+      {/* Stats Grid */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {[
+            { label: 'Total Pipeline', value: totalLeads, sub: 'All inquiries', icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' },
+            { label: 'New Today', value: newLeadsToday, sub: 'In the last 24h', icon: Clock, color: 'text-emerald-500', bg: 'bg-emerald-50' },
+            { label: 'Conversion', value: `${conversionRate}%`, sub: 'Inquiries won', icon: Target, color: 'text-indigo-500', bg: 'bg-indigo-50' },
+            { label: 'At Risk', value: criticalLeads, sub: 'Needs attention', icon: Activity, color: 'text-rose-500', bg: 'bg-rose-50' }
+        ].map((stat, i) => (
+            <Card key={i} className="border-slate-100 shadow-xl rounded-[32px] overflow-hidden group hover:border-slate-200 transition-all">
+                <CardContent className="p-8">
+                    <div className="flex justify-between items-start mb-4">
+                        <div className={cn("p-3 rounded-2xl", stat.bg)}>
+                            <stat.icon className={cn("w-5 h-5", stat.color)} />
                         </div>
-                        <h3 className="text-4xl font-black">Performance: <span className="text-emerald-400">Peak</span></h3>
-                        <p className="text-teal-100/60 text-sm leading-relaxed font-medium">
-                            Your team is maintaining high velocity. {leads.length} total inquiries synced across all connected channels.
-                        </p>
-                        <div className="flex gap-4 pt-2">
-                             <Button onClick={generateInsights} className="bg-emerald-500 hover:bg-emerald-600 text-white border-none h-12 px-8 shadow-xl shadow-emerald-500/20 rounded-2xl font-bold" isLoading={isGenerating}>
-                                Perform Audit
-                             </Button>
+                        <span className="text-xs font-bold text-slate-400 flex items-center gap-1">
+                            Live <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                        </span>
+                    </div>
+                    <div className="space-y-1">
+                        <p className="text-3xl font-black text-slate-900">{stat.value}</p>
+                        <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">{stat.label}</p>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-4 font-medium">{stat.sub}</p>
+                </CardContent>
+            </Card>
+        ))}
+      </div>
+
+      <div className="grid gap-8 lg:grid-cols-12">
+        {/* Pipeline Distribution Chart */}
+        <Card className="lg:col-span-8 border-slate-100 shadow-2xl rounded-[40px] overflow-hidden">
+            <CardHeader className="p-10 pb-0">
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="text-xl">Pipeline Velocity</CardTitle>
+                        <p className="text-xs text-slate-500 font-medium mt-1">Lead distribution across the closing funnel.</p>
+                    </div>
+                    <BarChart3 className="w-5 h-5 text-slate-300" />
+                </div>
+            </CardHeader>
+            <CardContent className="p-10 pt-4">
+                <div className="h-[320px] w-full">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={stageData}>
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                            <XAxis 
+                                dataKey="name" 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{fill: '#94a3b8', fontSize: 11, fontWeight: 700}} 
+                                dy={10}
+                            />
+                            <YAxis 
+                                axisLine={false} 
+                                tickLine={false} 
+                                tick={{fill: '#94a3b8', fontSize: 11}}
+                                width={30}
+                            />
+                            <Tooltip 
+                                cursor={{fill: '#f8fafc'}}
+                                contentStyle={{borderRadius: '20px', border: 'none', boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1)', padding: '15px'}}
+                            />
+                            <Bar dataKey="value" radius={[8, 8, 8, 8]} barSize={40}>
+                                {stageData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={index === 5 ? '#10b981' : '#0f172a'} />
+                                ))}
+                            </Bar>
+                        </BarChart>
+                    </ResponsiveContainer>
+                </div>
+            </CardContent>
+        </Card>
+
+        {/* AI Insight Panel */}
+        <div className="lg:col-span-4 space-y-6">
+            <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none shadow-2xl rounded-[40px] overflow-hidden h-full">
+                <CardContent className="p-10 h-full flex flex-col">
+                    <div className="flex items-center gap-4 mb-8">
+                        <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl border border-emerald-500/20 flex items-center justify-center">
+                            <Lightbulb className="w-6 h-6 text-emerald-400" />
+                        </div>
+                        <div>
+                            <h4 className="text-lg font-bold">Strategic Assistant</h4>
+                            <p className="text-[10px] font-black uppercase tracking-widest text-teal-200/40 mt-1">Gemini AI Engine</p>
                         </div>
                     </div>
-                </div>
 
-                {aiInsight && (
-                    <div className="mt-10 p-8 bg-white/5 rounded-[32px] border border-white/10 animate-in fade-in slide-in-from-bottom-4 backdrop-blur-sm">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                            {aiInsight.split('\n').filter(l => l.trim()).slice(0, 4).map((text, i) => (
-                                <div key={i} className="flex gap-4">
-                                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 flex items-center justify-center shrink-0 border border-emerald-500/20">
-                                        <Lightbulb className="w-5 h-5 text-emerald-400" />
+                    {!aiInsight ? (
+                        <div className="flex-1 flex flex-col justify-center items-center text-center space-y-4">
+                            <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center">
+                                <Sparkles className="w-8 h-8 text-white/20" />
+                            </div>
+                            <p className="text-sm text-teal-100/40 font-medium">Click "AI Strategy" to analyze your current pipeline health.</p>
+                        </div>
+                    ) : (
+                        <div className="space-y-6 flex-1 overflow-y-auto no-scrollbar animate-in fade-in slide-in-from-right-4">
+                            {aiInsight.split('\n').filter(l => l.trim()).map((insight, i) => (
+                                <div key={i} className="flex gap-4 group">
+                                    <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/20 transition-all">
+                                        <span className="text-[10px] font-black text-emerald-400">{i + 1}</span>
                                     </div>
-                                    <p className="text-xs text-teal-50/80 leading-relaxed font-medium">{text.replace(/^[*-]\s+/, '')}</p>
+                                    <p className="text-sm text-teal-50/80 leading-relaxed font-medium">
+                                        {insight.replace(/^[0-9*.-]\s+/, '')}
+                                    </p>
                                 </div>
                             ))}
                         </div>
-                    </div>
-                )}
-             </CardContent>
-        </Card>
+                    )}
 
-        <Card className="md:col-span-4 bg-white border-slate-100 shadow-2xl flex flex-col p-10 rounded-[40px]">
-            <h4 className="text-[10px] font-black text-slate-900 uppercase tracking-[0.2em] mb-8 flex items-center gap-2">
-              <Activity className="w-4 h-4 text-slate-300" /> Activity Monitor
-            </h4>
-            <div className="space-y-6 flex-1 overflow-y-auto no-scrollbar">
-                {leads.slice(0, 6).map((lead, i) => (
-                    <div key={i} className="flex items-start gap-4 group">
-                        <div className={cn(
-                            "w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border transition-all",
-                            lead.status === 'Won' ? "bg-emerald-50 text-emerald-500 border-emerald-100" :
-                            "bg-slate-50 text-slate-400 border-slate-100"
-                        )}>
-                            <Users className="w-4 h-4" />
+                    <div className="pt-8 border-t border-white/10 mt-auto">
+                        <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-teal-200/20">Active Analysis</span>
+                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                         </div>
-                        <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-slate-900 truncate">{lead.name}</p>
-                            <p className="text-[10px] text-slate-400 font-medium">{lead.source} • {formatDate(lead.createdAt)}</p>
-                        </div>
-                        <ChevronRight className="w-4 h-4 text-slate-200" />
                     </div>
-                ))}
-            </div>
-        </Card>
+                </CardContent>
+            </Card>
+        </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
-        {[
-            { label: 'Pipeline Volume', value: totalLeads, icon: Users, color: 'text-blue-600' },
-            { label: 'Closed/Won', value: wonLeads, icon: CheckCircle2, color: 'text-emerald-600' },
-            { label: 'At Risk', value: criticalLeads.length, icon: ShieldAlert, color: 'text-rose-600' },
-            { label: 'Engagement', value: logs.length, icon: MessageSquare, color: 'text-amber-600' }
-        ].map((stat, i) => (
-            <Card key={i} className="p-8 border-slate-100 shadow-xl rounded-[32px] group">
-                <stat.icon className={cn("w-6 h-6 mb-6", stat.color)} />
-                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{stat.label}</p>
-                <p className="text-3xl font-black text-slate-900 mt-1">{stat.value}</p>
-            </Card>
-        ))}
+      {/* Activity Row */}
+      <div className="grid gap-8 lg:grid-cols-2">
+        {/* Recent Inquiries */}
+        <Card className="border-slate-100 shadow-2xl rounded-[40px] overflow-hidden">
+            <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="text-lg">Recent Inquiries</CardTitle>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Latest leads added</p>
+                </div>
+                <Users className="w-5 h-5 text-slate-300" />
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="divide-y divide-slate-50">
+                    {leads.slice(0, 5).length === 0 ? (
+                        <div className="p-12 text-center text-slate-400 italic">No inquiries found.</div>
+                    ) : (
+                        leads.slice(0, 5).map((lead) => (
+                            <div key={lead.id} className="p-6 hover:bg-slate-50/50 transition-colors flex items-center justify-between group">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-12 h-12 rounded-2xl bg-slate-900 text-white flex items-center justify-center font-bold shadow-lg">
+                                        {lead.name.charAt(0)}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-900">{lead.name}</p>
+                                        <p className="text-xs text-slate-500">{lead.propertyAddress || 'General Inquiry'}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-xs font-bold text-slate-900">{formatDate(lead.createdAt)}</p>
+                                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400">{lead.source}</span>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </CardContent>
+        </Card>
+
+        {/* Outreach History */}
+        <Card className="border-slate-100 shadow-2xl rounded-[40px] overflow-hidden">
+            <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
+                <div>
+                    <CardTitle className="text-lg">Recent Engagement</CardTitle>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mt-1">Last communications sent</p>
+                </div>
+                <MessageSquare className="w-5 h-5 text-slate-300" />
+            </CardHeader>
+            <CardContent className="p-0">
+                <div className="divide-y divide-slate-50">
+                    {logs.slice(0, 5).length === 0 ? (
+                        <div className="p-12 text-center text-slate-400 italic">No outreach history.</div>
+                    ) : (
+                        logs.slice(0, 5).map((log) => (
+                            <div key={log.id} className="p-6 hover:bg-slate-50/50 transition-colors flex items-center justify-between group">
+                                <div className="flex items-center gap-4">
+                                    <div className="w-10 h-10 rounded-xl bg-slate-100 flex items-center justify-center text-slate-500 group-hover:bg-slate-900 group-hover:text-white transition-all">
+                                        {log.channel === 'email' ? <ArrowUpRight className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
+                                    </div>
+                                    <div>
+                                        <p className="font-bold text-slate-900">{log.leadName}</p>
+                                        <p className="text-[11px] text-slate-500 font-medium truncate max-w-[200px]">{log.content}</p>
+                                    </div>
+                                </div>
+                                <div className="text-right">
+                                    <span className={cn(
+                                        "text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border",
+                                        log.status === 'Sent' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-100 text-slate-400 border-slate-200"
+                                    )}>
+                                        {log.status}
+                                    </span>
+                                    <p className="text-[9px] text-slate-400 font-bold uppercase mt-1">{log.channel}</p>
+                                </div>
+                            </div>
+                        ))
+                    )}
+                </div>
+            </CardContent>
+        </Card>
       </div>
     </div>
   );

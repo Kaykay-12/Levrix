@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Lead } from '../types';
-import { Sparkles, Palette, Megaphone, Download, Copy, RefreshCw, Wand2, Image as ImageIcon, Instagram, Facebook, Linkedin, Loader2, Home, Share2, Check, FileText, Layout, ArrowRight } from 'lucide-react';
+import { Sparkles, Palette, Megaphone, Download, Copy, RefreshCw, Wand2, Image as ImageIcon, Instagram, Facebook, Linkedin, Loader2, Home, Share2, Check, FileText, Layout, ArrowRight, Target, List } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { cn } from '../lib/utils';
 
@@ -13,12 +13,22 @@ interface MarketingProps {
 
 export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
   const [description, setDescription] = useState('');
+  const [targetAudience, setTargetAudience] = useState('General Market');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generatedCopy, setGeneratedCopy] = useState<{ig: string, fb: string, li: string, flyer: {headline: string, body: string, features: string[]}} | null>(null);
   const [copiedTab, setCopiedTab] = useState<string | null>(null);
 
   const uniqueProperties = Array.from(new Set(leads.map(l => l.propertyAddress).filter(Boolean)));
+
+  const AUDIENCE_OPTIONS = [
+    'General Market',
+    'First-time Homebuyers',
+    'Real Estate Investors',
+    'Luxury Market',
+    'Retirees / Empty Nesters',
+    'Young Professionals'
+  ];
 
   const handleGenerate = async () => {
     if (!description.trim()) return;
@@ -53,11 +63,24 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
       const textResponse = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
         contents: `Create marketing assets for this property: ${description}. 
+        Target Audience: ${targetAudience}. 
+        Tone Guidance: 
+        - If First-time Homebuyers: Focus on approachability, security, and the dream of ownership.
+        - If Investors: Focus on ROI, yield, appreciation potential, and market fundamentals.
+        - If Luxury: Use aspirational, sophisticated language, focusing on exclusivity and rare features.
+        - If General: Balanced, professional, and highlight key property merits.
+        
         Provide: 
         1. Instagram caption
         2. Facebook post
         3. LinkedIn professional update
-        4. A formal Flyer text (Headline, Body, and 5 Key Features).
+        4. A formal Flyer text (Headline, Body, and exactly 3-5 Key Features).
+        
+        CRITICAL INSTRUCTION FOR KEY FEATURES:
+        - The Key Features bullet points MUST be strictly derived from the property description provided.
+        - Prioritize specific amenities (e.g., "Infinity Pool"), architectural details (e.g., "Floor-to-ceiling windows"), or location benefits (e.g., "3 minutes from the metro") that are explicitly mentioned in the input text.
+        - Do not hallucinate features not present in the description unless they are logically implied (e.g., if a 5th floor penthouse, it has views).
+        
         Format as JSON.`,
         config: {
             responseMimeType: "application/json",
@@ -72,7 +95,12 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                         properties: {
                             headline: { type: "STRING" },
                             body: { type: "STRING" },
-                            features: { type: "ARRAY", items: { type: "STRING" } }
+                            features: { 
+                                type: "ARRAY", 
+                                items: { type: "STRING" },
+                                minItems: 3,
+                                maxItems: 5
+                            }
                         },
                         required: ["headline", "body", "features"]
                     }
@@ -117,15 +145,30 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                 <Palette className="w-5 h-5 text-slate-400" /> Creative Brief
               </CardTitle>
             </CardHeader>
-            <CardContent className="space-y-8 p-8 pt-0">
+            <CardContent className="space-y-6 p-8 pt-0">
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Property Description</label>
                 <textarea 
-                  className="w-full h-48 p-5 rounded-3xl border border-slate-200 bg-slate-50 focus:bg-white transition-all text-sm resize-none focus:outline-none focus:ring-4 focus:ring-slate-900/5 font-medium leading-relaxed"
-                  placeholder="E.g., Ultra-modern 5-bedroom villa with infinity pool, smart home features, and panoramic city views in Accra..."
+                  className="w-full h-32 p-5 rounded-3xl border border-slate-200 bg-slate-50 focus:bg-white transition-all text-sm resize-none focus:outline-none focus:ring-4 focus:ring-slate-900/5 font-medium leading-relaxed"
+                  placeholder="E.g., Ultra-modern 5-bedroom villa with infinity pool..."
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1 flex items-center gap-2">
+                   <Target className="w-3 h-3" /> Target Audience
+                </label>
+                <select 
+                  className="w-full h-12 px-4 rounded-2xl border border-slate-200 bg-slate-50 focus:bg-white transition-all text-sm focus:outline-none focus:ring-4 focus:ring-slate-900/5 font-medium appearance-none"
+                  value={targetAudience}
+                  onChange={(e) => setTargetAudience(e.target.value)}
+                >
+                  {AUDIENCE_OPTIONS.map(opt => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
               </div>
 
               {uniqueProperties.length > 0 && (
@@ -167,7 +210,7 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                 </div>
                 <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-200/40">Studio Tip</h4>
                 <p className="text-sm text-teal-100/60 leading-relaxed font-medium">
-                  Detailed architectural descriptors like "brutalist concrete," "scandinavian wood," or "floor-to-ceiling glass" will significantly improve the rendering accuracy.
+                  Selecting a specific target audience like <span className="text-emerald-400">Investors</span> will shift the generated copy to focus on cap rates, ROI, and growth metrics.
                 </p>
              </CardContent>
           </Card>
@@ -182,7 +225,7 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                </div>
                <h3 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Studio Idle</h3>
                <p className="text-slate-500 max-w-xs mx-auto text-sm leading-relaxed font-medium">
-                  Provide a property brief to start generating high-resolution visualizations and multi-channel copy.
+                  Provide a property brief and select an audience to start generating high-resolution visualizations and tailored copy.
                </p>
             </div>
           )}
@@ -196,7 +239,7 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                   </div>
                   <div>
                     <h3 className="text-4xl font-black text-white mb-2 tracking-tight">Gemini Creating...</h3>
-                    <p className="text-teal-100/40 text-xs font-black uppercase tracking-[0.3em]">Drafting Copy & Rendering Assets</p>
+                    <p className="text-teal-100/40 text-xs font-black uppercase tracking-[0.3em]">Drafting Copy for {targetAudience}</p>
                   </div>
                   <div className="w-64 h-1.5 bg-white/10 rounded-full mx-auto overflow-hidden">
                     <div className="h-full bg-emerald-500 w-1/2 animate-loading-bar rounded-full shadow-[0_0_15px_rgba(16,185,129,0.5)]" />
@@ -243,13 +286,18 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                        <div className="md:w-1/3 bg-slate-900 p-10 text-white flex flex-col justify-between relative overflow-hidden">
                           <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16" />
                           <div className="relative z-10">
-                             <h5 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400 mb-6">Property Flyer</h5>
-                             <h3 className="text-3xl font-black leading-tight mb-8">{generatedCopy.flyer.headline}</h3>
+                             <h5 className="text-[10px] font-black uppercase tracking-[0.3em] text-emerald-400 mb-6">Audience: {targetAudience}</h5>
+                             <h3 className="text-3xl font-black leading-tight mb-10">{generatedCopy.flyer.headline}</h3>
+                             
+                             <div className="mb-4 flex items-center gap-2">
+                                <List className="w-3 h-3 text-emerald-400" />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-teal-200/40">Key Features</span>
+                             </div>
                              <div className="space-y-4">
                                 {generatedCopy.flyer.features.map((feat, i) => (
-                                   <div key={i} className="flex items-center gap-3">
-                                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" />
-                                      <span className="text-xs font-bold text-slate-300">{feat}</span>
+                                   <div key={i} className="flex items-center gap-3 group/feat">
+                                      <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)] group-hover/feat:scale-125 transition-transform" />
+                                      <span className="text-xs font-bold text-slate-300 leading-tight">{feat}</span>
                                    </div>
                                 ))}
                              </div>
@@ -261,7 +309,7 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                           </div>
                        </div>
                        <div className="flex-1 p-10 flex flex-col justify-center">
-                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Brochure Content</p>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-4">Flyer Body Copy</p>
                           <p className="text-lg text-slate-700 leading-relaxed font-medium italic">"{generatedCopy.flyer.body}"</p>
                           <div className="mt-8 flex gap-4">
                              <button 

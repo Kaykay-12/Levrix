@@ -4,10 +4,10 @@ import { Lead, LeadStatus, FollowUpStage } from '../types';
 import { Card, CardHeader, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Plus, Search, MoreHorizontal, Mail, ChevronLeft, ChevronRight, Download, Home, Megaphone, AlertCircle, ShieldAlert, CheckCircle2, Copy, Sparkles, Wand2, Facebook, Globe, RefreshCw } from 'lucide-react';
+import { Plus, Search, MoreHorizontal, Mail, ChevronLeft, ChevronRight, Download, Home, Megaphone, AlertCircle, ShieldAlert, CheckCircle2, Copy, Sparkles, Wand2, Facebook, Globe, RefreshCw, MailX, Calendar } from 'lucide-react';
 import { LeadModal } from '../components/LeadModal';
 import { LeadDetails } from '../components/LeadDetails';
-import { cn } from '../lib/utils';
+import { cn, formatDate } from '../lib/utils';
 
 interface LeadsProps {
   leads: Lead[];
@@ -86,6 +86,12 @@ export const Leads: React.FC<LeadsProps> = ({ leads, onAddLead, onUpdateStatus, 
     }
   };
 
+  const isNewLead = (createdAt: string) => {
+    const createdDate = new Date(createdAt).getTime();
+    const now = new Date().getTime();
+    return (now - createdDate) < (24 * 60 * 60 * 1000); // 24 hours
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -159,6 +165,7 @@ export const Leads: React.FC<LeadsProps> = ({ leads, onAddLead, onUpdateStatus, 
                 <tr>
                   <th className="px-6 py-4 w-10">Health</th>
                   <th className="px-4 py-4">Buyer Info</th>
+                  <th className="px-4 py-4">Added On</th>
                   <th className="px-4 py-4">Current Stage</th>
                   <th className="px-4 py-4">Listing Interest</th>
                   <th className="px-4 py-4 text-right pr-6">Actions</th>
@@ -166,7 +173,7 @@ export const Leads: React.FC<LeadsProps> = ({ leads, onAddLead, onUpdateStatus, 
               </thead>
               <tbody>
                 {filteredLeads.length === 0 ? (
-                    <tr><td colSpan={5} className="px-4 py-24 text-center text-slate-300 font-medium">No inquiries matching your behavioral filters.</td></tr>
+                    <tr><td colSpan={6} className="px-4 py-24 text-center text-slate-300 font-medium">No inquiries matching your behavioral filters.</td></tr>
                 ) : (
                     paginatedLeads.map((lead) => (
                     <tr key={lead.id} className="border-b border-slate-50 hover:bg-slate-50/80 transition-colors cursor-pointer group" onClick={() => setSelectedLead(lead)}>
@@ -177,15 +184,46 @@ export const Leads: React.FC<LeadsProps> = ({ leads, onAddLead, onUpdateStatus, 
                                     lead.agingStatus === 'critical' ? "bg-rose-500 animate-pulse shadow-rose-500/20" : 
                                     lead.agingStatus === 'warning' ? "bg-amber-400" : "bg-emerald-500"
                                 )} title={`Aging: ${lead.agingStatus}`} />
+                                {lead.health?.isInvalidEmail && (
+                                  <div className="w-3 h-3 rounded-full bg-rose-600 animate-ping shadow-sm" title="Invalid Email Data" />
+                                )}
                             </div>
                         </td>
                         <td className="px-4 py-5">
                             <div className="font-bold text-slate-900 flex items-center gap-2">
                                 {lead.name}
+                                {isNewLead(lead.createdAt) && (
+                                  <span className="flex items-center gap-1 px-1.5 py-0.5 bg-emerald-500 text-white rounded-md text-[8px] font-black uppercase tracking-wider animate-pulse-slow">
+                                    New
+                                  </span>
+                                )}
                                 {lead.source === 'Facebook' && <Facebook className="w-3 h-3 text-blue-500" />}
                                 {lead.source === 'Google' && <Globe className="w-3 h-3 text-slate-400" />}
+                                {lead.sentiment === 'Negative' && (
+                                   <div className="flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 text-rose-600 rounded-md text-[9px] font-black uppercase border border-rose-100 shadow-sm animate-pulse">
+                                      <ShieldAlert className="w-2.5 h-2.5" /> High Risk
+                                   </div>
+                                )}
                             </div>
-                            <div className="text-[10px] text-slate-500 uppercase tracking-tighter font-bold">{lead.email}</div>
+                            <div className="flex items-center gap-2">
+                              <div className={cn(
+                                "text-[10px] uppercase tracking-tighter font-bold",
+                                lead.health?.isInvalidEmail ? "text-rose-500 line-through" : "text-slate-500"
+                              )}>
+                                {lead.email}
+                              </div>
+                              {lead.health?.isInvalidEmail && (
+                                <span className="flex items-center gap-1 text-[8px] bg-rose-500 text-white px-1 rounded-sm font-black uppercase">
+                                  <MailX className="w-2 h-2" /> Verify Needed
+                                </span>
+                              )}
+                            </div>
+                        </td>
+                        <td className="px-4 py-5">
+                            <div className="flex items-center gap-1.5 text-slate-500 font-medium">
+                                <Calendar className="w-3 h-3 text-slate-300" />
+                                {formatDate(lead.createdAt)}
+                            </div>
                         </td>
                         <td className="px-4 py-5">
                             <span className={cn("px-2.5 py-1 rounded text-[10px] font-black uppercase tracking-widest border", getStageColor(lead.stage))}>

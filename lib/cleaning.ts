@@ -1,5 +1,6 @@
 
 import { Lead, DataHealth } from '../types';
+import { GoogleGenAI } from "@google/genai";
 
 /**
  * Standardizes a string to Title Case (e.g. "SARAH johnson" -> "Sarah Johnson")
@@ -14,31 +15,36 @@ export const standardizeName = (name: string): string => {
 };
 
 /**
- * Basic heuristic to detect fake/test emails
+ * Validates an email address using an external verification pattern.
+ * This simulates a third-party API call (like AbstractAPI or ZeroBounce).
  */
-export const isFakeEmail = (email: string): boolean => {
-  const fakePatterns = [
-    'test@',
-    'asdf@',
-    'example@',
-    'qwerty@',
-    'none@',
-    'noemail@',
-    'user@'
-  ];
-  const e = email.toLowerCase();
+export const validateEmailAddress = async (email: string): Promise<boolean> => {
+  const e = email.toLowerCase().trim();
   
-  // Syntax check
-  if (!/^\S+@\S+\.\S+$/.test(e)) return true;
-  
-  // Pattern check
-  if (fakePatterns.some(p => e.startsWith(p))) return true;
-  
-  // Repeating characters (e.g. aaaaa@...)
-  const localPart = e.split('@')[0];
-  if (localPart.length > 3 && /^(\w)\1+$/.test(localPart)) return true;
+  // 1. Basic Regex Syntax Check
+  const emailRegex = /^\S+@\S+\.\S+$/;
+  if (!emailRegex.test(e)) return false;
 
-  return false;
+  // 2. Disposable Email / Known Fake Pattern Heuristics
+  const fakePatterns = ['test@', 'asdf@', 'example@', 'qwerty@', 'none@', 'noemail@', 'tempmail', 'guerrillamail'];
+  if (fakePatterns.some(p => e.includes(p))) return false;
+
+  // 3. Deep Verification using Gemini (Simulating Third-Party API logic for deliverability)
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const response = await ai.models.generateContent({
+      model: 'gemini-3-flash-preview',
+      contents: `Perform a deliverability and risk assessment for this email: ${e}. 
+      Is this a valid, likely deliverable, non-disposable work or personal email? 
+      Respond with exactly "valid" or "invalid".`,
+    });
+    
+    const result = response.text?.toLowerCase().trim();
+    return result === 'valid';
+  } catch (error) {
+    console.error("Third-party email validation failed, falling back to regex", error);
+    return emailRegex.test(e);
+  }
 };
 
 /**
@@ -56,7 +62,7 @@ export const analyzeLeadHealth = (lead: Lead, allLeads: Lead[]): DataHealth => {
   return {
     isDuplicate: duplicates.length > 0,
     duplicateIds: duplicates.map(d => d.id),
-    isInvalidEmail: isFakeEmail(lead.email),
+    isInvalidEmail: !!lead.health?.isInvalidEmail, // Persist current state if already checked
     needsStandardization: lead.name !== standardizeName(lead.name)
   };
 };

@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Lead, LeadStatus, FollowUpStage } from '../types';
-import { X, Mail, Phone, MessageSquare, Calendar, Globe, Clock, Sparkles, Briefcase, Pencil, Save, RotateCcw, Check, AlignLeft, Mic, Loader2, Target, TrendingUp, RefreshCw, Square, CheckCircle2, Circle, ExternalLink, MapPin, CalendarClock, ListTodo } from 'lucide-react';
+import { X, Mail, Phone, MessageSquare, Calendar, Globe, Clock, Sparkles, Briefcase, Pencil, Save, RotateCcw, Check, AlignLeft, Mic, Loader2, Target, TrendingUp, RefreshCw, Square, CheckCircle2, Circle, ExternalLink, MapPin, CalendarClock, ListTodo, ShieldAlert, Activity } from 'lucide-react';
 import { Button } from './ui/Button';
 import { Input } from './ui/Input';
 import { cn, formatDate } from '../lib/utils';
@@ -192,9 +192,12 @@ export const LeadDetails: React.FC<LeadDetailsProps> = ({ lead, isOpen, onClose,
                 <div className="w-24 h-24 rounded-full bg-slate-900 text-white flex items-center justify-center text-3xl font-bold mx-auto mb-4 border-4 border-white shadow-xl">
                     {lead.name.substring(0,2).toUpperCase()}
                 </div>
-                <h3 className="text-2xl font-bold text-slate-900">{lead.name}</h3>
+                <h3 className="text-2xl font-bold text-slate-900 leading-tight">{lead.name}</h3>
+                <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em] mt-2 flex items-center justify-center gap-1.5">
+                  <Calendar className="w-3 h-3" /> Captured {formatDate(lead.createdAt)}
+                </p>
                 
-                <div className="mt-4 flex justify-center gap-2">
+                <div className="mt-6 flex flex-wrap justify-center gap-3">
                     <div className="bg-white border rounded-xl px-4 py-2 shadow-sm flex items-center gap-3">
                         <Target className="w-4 h-4 text-emerald-500" />
                         <div>
@@ -204,6 +207,33 @@ export const LeadDetails: React.FC<LeadDetailsProps> = ({ lead, isOpen, onClose,
                         <button onClick={handleAIScore} disabled={isScoring} className="ml-2 p-1.5 bg-slate-100 rounded-lg hover:bg-emerald-50 text-slate-400 hover:text-emerald-600 transition-all">
                             {isScoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                         </button>
+                    </div>
+
+                    <div className={cn(
+                        "bg-white border rounded-xl px-4 py-2 shadow-sm flex items-center gap-3 transition-all",
+                        formData.sentiment === 'Negative' && "border-rose-200 bg-rose-50/30"
+                    )}>
+                        <div className={cn(
+                            "w-8 h-8 rounded-lg flex items-center justify-center",
+                            formData.sentiment === 'Positive' ? "bg-emerald-50 text-emerald-600" :
+                            formData.sentiment === 'Negative' ? "bg-rose-100 text-rose-600 animate-pulse" :
+                            "bg-slate-50 text-slate-400"
+                        )}>
+                            {formData.sentiment === 'Positive' ? <TrendingUp className="w-4 h-4" /> :
+                             formData.sentiment === 'Negative' ? <ShieldAlert className="w-4 h-4" /> :
+                             <Activity className="w-4 h-4" />}
+                        </div>
+                        <div>
+                            <p className="text-[10px] uppercase font-bold text-slate-400">Sentiment</p>
+                            <p className={cn(
+                                "text-[10px] font-black uppercase tracking-widest",
+                                formData.sentiment === 'Positive' ? "text-emerald-600" :
+                                formData.sentiment === 'Negative' ? "text-rose-600" :
+                                "text-slate-900"
+                            )}>
+                                {formData.sentiment || 'Neutral'}
+                            </p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -221,10 +251,12 @@ export const LeadDetails: React.FC<LeadDetailsProps> = ({ lead, isOpen, onClose,
                                 onClick={toggleTaskStatus}
                                 className={cn(
                                     "flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border transition-all",
-                                    formData.taskCompleted ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-50 text-slate-400 border-slate-100"
+                                    formData.taskCompleted 
+                                        ? "bg-emerald-500 text-white border-emerald-500 shadow-lg shadow-emerald-500/20" 
+                                        : "bg-slate-50 text-slate-400 border-slate-100"
                                 )}
                             >
-                                {formData.taskCompleted ? <Check className="w-3 h-3" /> : <div className="w-3 h-3 rounded-full border border-current" />}
+                                {formData.taskCompleted ? <Check className="w-3 h-3 text-white" /> : <div className="w-3 h-3 rounded-full border border-current" />}
                                 {formData.taskCompleted ? 'Completed' : 'Pending'}
                             </button>
                         </div>
@@ -235,7 +267,10 @@ export const LeadDetails: React.FC<LeadDetailsProps> = ({ lead, isOpen, onClose,
                                 placeholder="e.g. Call to discuss contract"
                                 value={formData.nextFollowUpTask || ''}
                                 onChange={(e) => setFormData({...formData, nextFollowUpTask: e.target.value})}
-                                className="h-10 text-xs"
+                                className={cn(
+                                    "h-10 text-xs transition-all",
+                                    formData.taskCompleted && "line-through opacity-50 grayscale"
+                                )}
                             />
                             <div className="space-y-1">
                                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-widest ml-1">Due Date & Time</label>
@@ -243,7 +278,10 @@ export const LeadDetails: React.FC<LeadDetailsProps> = ({ lead, isOpen, onClose,
                                     type="datetime-local"
                                     value={formData.taskDueDate ? formData.taskDueDate.substring(0, 16) : ''}
                                     onChange={(e) => setFormData({...formData, taskDueDate: e.target.value})}
-                                    className="h-10 text-xs"
+                                    className={cn(
+                                        "h-10 text-xs transition-all",
+                                        formData.taskCompleted && "line-through opacity-50 grayscale"
+                                    )}
                                 />
                             </div>
                         </div>
@@ -279,12 +317,22 @@ export const LeadDetails: React.FC<LeadDetailsProps> = ({ lead, isOpen, onClose,
                            </button>
                         </div>
                     </div>
-                    <textarea 
-                        className="w-full h-40 p-4 rounded-2xl border border-slate-200 bg-slate-50 text-sm focus:bg-white transition-all resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                        placeholder="Add discovery notes here..."
-                        value={formData.notes}
-                        onChange={(e) => setFormData({...formData, notes: e.target.value})}
-                    />
+                    <div className="relative">
+                        <textarea 
+                            className="w-full h-40 p-4 rounded-2xl border border-slate-200 bg-slate-50 text-sm focus:bg-white transition-all resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                            placeholder="Add discovery notes here..."
+                            value={formData.notes}
+                            onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                        />
+                        {isProcessingVoice && (
+                           <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[1px] rounded-2xl">
+                               <div className="flex flex-col items-center gap-2">
+                                   <Loader2 className="w-6 h-6 text-emerald-500 animate-spin" />
+                                   <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">AI Processing Intel...</p>
+                               </div>
+                           </div>
+                        )}
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4 pb-8">
