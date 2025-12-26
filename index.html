@@ -69,6 +69,32 @@
       .animate-wave {
         animation: wave 1s ease-in-out infinite;
       }
+
+      /* Print Optimization */
+      @media print {
+        aside, header, .no-print, button {
+          display: none !important;
+        }
+        main {
+          padding: 0 !important;
+          margin: 0 !important;
+          width: 100% !important;
+          background: white !important;
+        }
+        body {
+          background: white !important;
+        }
+        .max-w-7xl {
+          max-width: none !important;
+        }
+        .shadow-lg, .shadow-xl, .shadow-2xl, .shadow-3xl {
+          box-shadow: none !important;
+          border: 1px solid #e2e8f0 !important;
+        }
+        .bg-slate-50\/20, .bg-emerald-50\/20 {
+          background-color: transparent !important;
+        }
+      }
     </style>
   <script type="importmap">
 {

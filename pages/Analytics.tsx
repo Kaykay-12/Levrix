@@ -42,7 +42,6 @@ export const Analytics: React.FC<AnalyticsProps> = ({ leads }) => {
   const followUpRate = leadsWithTasks.length > 0 ? Math.round((completedTasks / leadsWithTasks.length) * 100) : 0;
 
   // 3. Lost Deals due to No Response
-  // Logic: Lead status is 'Lost' AND (firstContactedAt is null OR notes contain 'no response')
   const lostNoResponse = leads.filter(l => 
     l.status === 'Lost' && (!l.firstContactedAt || (l.notes?.toLowerCase().includes('no response')))
   ).length;
@@ -73,10 +72,12 @@ export const Analytics: React.FC<AnalyticsProps> = ({ leads }) => {
 
   const handleDownloadReport = () => {
     setIsDownloading(true);
+    
+    // Brief delay to allow UI to settle before printing
     setTimeout(() => {
+        window.print();
         setIsDownloading(false);
-        alert("Real Estate Analytics Report Downloaded");
-    }, 1000);
+    }, 500);
   };
 
   return (
@@ -86,9 +87,9 @@ export const Analytics: React.FC<AnalyticsProps> = ({ leads }) => {
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">Real Estate Intelligence</h2>
           <p className="text-slate-500 mt-1">Operational KPIs and property-level insights.</p>
         </div>
-        <Button onClick={handleDownloadReport} disabled={isDownloading}>
+        <Button onClick={handleDownloadReport} disabled={isDownloading} className="no-print">
             {isDownloading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
-            Export Insights
+            Export Insights (PDF)
         </Button>
       </div>
 

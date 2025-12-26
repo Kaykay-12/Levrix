@@ -35,7 +35,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
   
   const criticalLeads = leads.filter(l => l.agingStatus === 'critical').length;
 
-  // Prepare chart data
   const stageData = [
     { name: 'Inquiry', value: leads.filter(l => l.stage === 'Inquiry').length },
     { name: 'Contacted', value: leads.filter(l => l.stage === 'First Contact').length },
@@ -49,14 +48,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
     setIsGenerating(true);
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-      const prompt = `Analyze this real estate pipeline: ${totalLeads} total leads, ${wonLeads} won, ${criticalLeads} at risk. Give 3 short, high-impact tactical suggestions for the agent.`;
+      const prompt = `Analyze this real estate pipeline: ${totalLeads} total leads, ${wonLeads} won, ${criticalLeads} at risk. 
+      Provide 3 high-impact tactical suggestions for the agent. 
+      
+      CRITICAL FORMATTING RULES:
+      1. Write in clear, professional paragraphs. 
+      2. DO NOT use numbers (1, 2, 3), bullet points, or any markdown symbols like asterisks (*) or hashes (#).
+      3. Use full words for numbers where possible.
+      4. Each suggestion should be a concise paragraph of professional advice.
+      5. Avoid headers entirely.`;
+
       const response = await ai.models.generateContent({ 
         model: 'gemini-3-flash-preview', 
         contents: prompt 
       });
-      setAiInsight(response.text || '');
+
+      // Sanitize output: Remove any markdown symbols or leading numbers/dots that might slip through
+      const cleanText = (response.text || '')
+        .replace(/[*#_~`>]/g, '') // Remove markdown symbols
+        .replace(/^[0-9]+[.)]\s+/gm, '') // Remove leading numbers like "1. " or "2)"
+        .trim();
+
+      setAiInsight(cleanText);
     } catch (error) {
-      setAiInsight("Strategy engine temporarily offline.");
+      setAiInsight("The strategy engine is currently re-calibrating. Please try again in a moment.");
     } finally { setIsGenerating(false); }
   };
 
@@ -68,7 +83,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
          </div>
          <div className="max-w-md space-y-2">
             <h2 className="text-3xl font-black text-slate-900">Workspace Syncing</h2>
-            <p className="text-slate-500 font-medium">Re-establishing connection with your database tables...</p>
+            <p className="text-slate-500 font-medium">Re-establishing connection with your database...</p>
          </div>
       </div>
     );
@@ -91,7 +106,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
         </div>
       </div>
 
-      {/* Stats Grid */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {[
             { label: 'Total Pipeline', value: totalLeads, sub: 'All inquiries', icon: Users, color: 'text-blue-500', bg: 'bg-blue-50' },
@@ -120,8 +134,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
       </div>
 
       <div className="grid gap-8 lg:grid-cols-12">
-        {/* Pipeline Distribution Chart */}
-        <Card className="lg:col-span-8 border-slate-100 shadow-2xl rounded-[40px] overflow-hidden">
+        <Card className="lg:col-span-7 border-slate-100 shadow-2xl rounded-[40px] overflow-hidden bg-white">
             <CardHeader className="p-10 pb-0">
                 <div className="flex items-center justify-between">
                     <div>
@@ -164,9 +177,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
             </CardContent>
         </Card>
 
-        {/* AI Insight Panel */}
-        <div className="lg:col-span-4 space-y-6">
-            <Card className="bg-gradient-to-br from-slate-900 to-slate-800 text-white border-none shadow-2xl rounded-[40px] overflow-hidden h-full">
+        <div className="lg:col-span-5 space-y-6">
+            <Card className="bg-gradient-to-br from-[#0f2925] to-[#0a1b18] text-white border-none shadow-2xl rounded-[40px] overflow-hidden h-full">
                 <CardContent className="p-10 h-full flex flex-col">
                     <div className="flex items-center gap-4 mb-8">
                         <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl border border-emerald-500/20 flex items-center justify-center">
@@ -186,35 +198,29 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
                             <p className="text-sm text-teal-100/40 font-medium">Click "AI Strategy" to analyze your current pipeline health.</p>
                         </div>
                     ) : (
-                        <div className="space-y-6 flex-1 overflow-y-auto no-scrollbar animate-in fade-in slide-in-from-right-4">
-                            {aiInsight.split('\n').filter(l => l.trim()).map((insight, i) => (
-                                <div key={i} className="flex gap-4 group">
-                                    <div className="w-8 h-8 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center shrink-0 group-hover:bg-emerald-500/20 transition-all">
-                                        <span className="text-[10px] font-black text-emerald-400">{i + 1}</span>
-                                    </div>
-                                    <p className="text-sm text-teal-50/80 leading-relaxed font-medium">
-                                        {insight.replace(/^[0-9*.-]\s+/, '')}
+                        <div className="space-y-8 flex-1 overflow-y-auto no-scrollbar animate-in fade-in slide-in-from-right-4">
+                            {aiInsight.split(/\n\n+/).filter(l => l.trim()).map((insight, i) => (
+                                <div key={i} className="flex gap-5 group">
+                                    <div className="w-1 h-auto bg-emerald-500/30 rounded-full shrink-0 group-hover:bg-emerald-400 transition-colors" />
+                                    <p className="text-sm text-teal-50/90 leading-relaxed font-medium">
+                                        {insight}
                                     </p>
                                 </div>
                             ))}
                         </div>
                     )}
 
-                    <div className="pt-8 border-t border-white/10 mt-auto">
-                        <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-teal-200/20">Active Analysis</span>
-                            <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                        </div>
+                    <div className="pt-8 border-t border-white/10 mt-auto flex items-center justify-between">
+                        <span className="text-[10px] font-black uppercase tracking-widest text-teal-200/20">Analysis Complete</span>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500" />
                     </div>
                 </CardContent>
             </Card>
         </div>
       </div>
 
-      {/* Activity Row */}
       <div className="grid gap-8 lg:grid-cols-2">
-        {/* Recent Inquiries */}
-        <Card className="border-slate-100 shadow-2xl rounded-[40px] overflow-hidden">
+        <Card className="border-slate-100 shadow-2xl rounded-[40px] overflow-hidden bg-white">
             <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
                 <div>
                     <CardTitle className="text-lg">Recent Inquiries</CardTitle>
@@ -225,7 +231,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
             <CardContent className="p-0">
                 <div className="divide-y divide-slate-50">
                     {leads.slice(0, 5).length === 0 ? (
-                        <div className="p-12 text-center text-slate-400 italic">No inquiries found.</div>
+                        <div className="p-12 text-center text-slate-400 italic font-medium">No inquiries found yet.</div>
                     ) : (
                         leads.slice(0, 5).map((lead) => (
                             <div key={lead.id} className="p-6 hover:bg-slate-50/50 transition-colors flex items-center justify-between group">
@@ -249,8 +255,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
             </CardContent>
         </Card>
 
-        {/* Outreach History */}
-        <Card className="border-slate-100 shadow-2xl rounded-[40px] overflow-hidden">
+        <Card className="border-slate-100 shadow-2xl rounded-[40px] overflow-hidden bg-white">
             <CardHeader className="p-8 border-b border-slate-50 flex flex-row items-center justify-between">
                 <div>
                     <CardTitle className="text-lg">Recent Engagement</CardTitle>
@@ -261,7 +266,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
             <CardContent className="p-0">
                 <div className="divide-y divide-slate-50">
                     {logs.slice(0, 5).length === 0 ? (
-                        <div className="p-12 text-center text-slate-400 italic">No outreach history.</div>
+                        <div className="p-12 text-center text-slate-400 italic font-medium">No outreach history to display.</div>
                     ) : (
                         logs.slice(0, 5).map((log) => (
                             <div key={log.id} className="p-6 hover:bg-slate-50/50 transition-colors flex items-center justify-between group">

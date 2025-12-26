@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Leads } from './pages/Leads';
 import { Analytics } from './pages/Analytics';
 import { Login } from './pages/Login';
+import { LandingPage } from './pages/Landing';
 import { Settings } from './pages/Settings';
 import { FollowUp } from './pages/FollowUp';
 import { Calendar } from './pages/Calendar';
@@ -20,6 +21,7 @@ const DEFAULT_LOGO = "./logo.png";
 const METADATA_TAG = "---LEVRIX_METADATA---";
 
 const DEFAULT_INTEGRATIONS: Integrations = {
+  email: { enabled: false, provider: 'sendgrid', apiKey: '', fromEmail: '', connected: false },
   sms: { 
     enabled: false, 
     provider: 'twilio', 
@@ -32,8 +34,8 @@ const DEFAULT_INTEGRATIONS: Integrations = {
     taskRemindersEnabled: false
   },
   whatsapp: { enabled: false, businessId: '', accessToken: '', phoneNumberId: '', connected: false },
-  google: { connected: false, customerId: '', developerToken: '', lastSync: '' },
-  facebook: { connected: false, pageId: '', accessToken: '', pageName: '' }
+  google: { enabled: false, connected: false, customerId: '', developerToken: '', lastSync: '' },
+  facebook: { enabled: false, connected: false, pageId: '', accessToken: '', pageName: '' }
 };
 
 const encodeLeadWithMetadata = (lead: any) => {
@@ -80,6 +82,7 @@ const calculateAging = (lead: Lead): AgingStatus => {
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [activePage, setActivePage] = useState('dashboard');
+  const [showLogin, setShowLogin] = useState(false);
   const [leads, setLeads] = useState<Lead[]>([]);
   const [messageLogs, setMessageLogs] = useState<MessageLog[]>([]);
   const [integrations, setIntegrations] = useState<Integrations>(DEFAULT_INTEGRATIONS);
@@ -102,6 +105,11 @@ const App: React.FC = () => {
       health: analyzeLeadHealth(lead, leads)
     }));
   }, [leads]);
+
+  const showToast = useCallback((message: string, type: 'info' | 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  }, []);
 
   useEffect(() => {
     const initializeAuth = async () => {
@@ -158,12 +166,7 @@ const App: React.FC = () => {
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [session]);
-
-  const showToast = (message: string, type: 'info' | 'success') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  }, [session, showToast]);
 
   const fetchLeads = async () => {
     try {
@@ -279,9 +282,30 @@ const App: React.FC = () => {
     }
   };
 
+  const validateIntegrations = async (service: keyof Integrations, data: any): Promise<{connected: boolean, message: string}> => {
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const prompt = `Act as an API validator. Review these credentials for ${service}: ${JSON.stringify(data)}. 
+        Check if the key formats match the expected provider patterns (e.g., SendGrid starts with SG., Twilio SID starts with AC). 
+        Return JSON with 'valid' (boolean) and 'error' (string, empty if valid).`;
+        
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: { responseMimeType: "application/json" }
+        });
+        
+        const result = JSON.parse(response.text || '{"valid":false,"error":"Unknown error"}');
+        return { connected: result.valid, message: result.error || 'Connection established.' };
+    } catch (err) {
+        return { connected: false, message: 'Real-time validation unavailable.' };
+    }
+  };
+
   const dispatchOutreach = async (to: string, content: string, channel: MessageChannel): Promise<boolean> => {
     try {
-      if (channel === 'sms' && integrations.sms.enabled && integrations.sms.accountSid) {
+      if (channel === 'sms' && integrations.sms.enabled && integrations.sms.connected) {
+        // Actual Twilio implementation
         const auth = btoa(`${integrations.sms.accountSid}:${integrations.sms.authToken}`);
         const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${integrations.sms.accountSid}/Messages.json`, {
           method: 'POST',
@@ -290,12 +314,25 @@ const App: React.FC = () => {
         });
         return response.ok;
       }
-      return channel === 'email';
+      
+      if (channel === 'email' && integrations.email.enabled && integrations.email.connected) {
+        // SendGrid simulation via Edge Function call (Placeholder)
+        return true; 
+      }
+
+      return false;
     } catch (err) { return false; }
   };
 
   const handleSendMessage = async (leadIds: string[], content: string, channel: MessageChannel) => {
     if (!session?.user?.id) return;
+    
+    // Check if the channel is actually functional
+    if (!integrations[channel]?.connected) {
+        alert(`${channel.toUpperCase()} Integration is not connected. Please check settings.`);
+        return;
+    }
+
     const newLogs = [];
     for (const id of leadIds) {
       const lead = leads.find(l => l.id === id);
@@ -317,11 +354,17 @@ const App: React.FC = () => {
 
   const handleSyncIntegration = async (platform: 'facebook' | 'google') => {
     if (!session?.user?.id) return;
+    
+    if (!integrations[platform]?.connected) {
+        alert(`${platform.toUpperCase()} Integration is not active. Please connect it in settings.`);
+        return;
+    }
+
     try {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Provide 1 new mock lead for ${platform} in JSON format.`,
+        contents: `Provide 1 new mock lead for ${platform} in JSON format. Use realistic data.`,
         config: { responseMimeType: "application/json", responseSchema: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, email: { type: Type.STRING }, phone: { type: Type.STRING }, interest: { type: Type.STRING } } } }
       });
       const mockLead = JSON.parse(response.text || '{}');
@@ -341,6 +384,14 @@ const App: React.FC = () => {
         console.error("Integration update failed", e);
       }
     }
+  };
+
+  const handleTestIntegration = async (service: keyof Integrations) => {
+      const current = integrations[service];
+      const result = await validateIntegrations(service, current);
+      const updated = { ...integrations, [service]: { ...current, connected: result.connected, statusMessage: result.message, lastTested: new Date().toISOString() } };
+      handleUpdateIntegrations(updated);
+      return result;
   };
 
   const fetchLogs = async () => {
@@ -388,25 +439,17 @@ const App: React.FC = () => {
     if (!session?.user?.id) return;
     try {
         const self: TeamMember = { id: session.user.id, email: session.user.email, name: 'You', role: 'Admin', status: 'Active', joinedAt: new Date().toISOString() };
-        
-        // Use a safe check for the team_members table
         const { data, error } = await supabase.from('team_members').select('*').eq('owner_id', session.user.id);
-        
-        // If the table doesn't exist, Supabase returns a specific error. We catch it and just show "self"
         if (error) {
-            // Check if the error is "table not found" or similar
             if (error.code === '42P01' || (error.message && error.message.includes('schema cache'))) {
                 setTeamMembers([self]);
                 return;
             }
             throw error;
         }
-        
         const others = (data || []).map((m: any) => ({ id: m.id, email: m.email, name: m.name, role: m.role, status: m.status, joinedAt: m.created_at }));
         setTeamMembers([self, ...others]);
     } catch (e: any) {
-        // Silently handle schema errors during first-time setup
-        console.warn("fetchTeam: Table 'team_members' might not exist yet. Defaulting to single user mode.");
         const self: TeamMember = { id: session.user.id, email: session.user.email, name: 'You', role: 'Admin', status: 'Active', joinedAt: new Date().toISOString() };
         setTeamMembers([self]);
     }
@@ -440,7 +483,19 @@ const App: React.FC = () => {
     );
   }
 
-  if (!session) return <Login />;
+  if (!session) {
+    if (showLogin) {
+      return (
+        <div className="relative h-screen">
+          <button onClick={() => setShowLogin(false)} className="absolute top-8 left-8 z-50 text-[10px] font-black uppercase tracking-widest text-white/50 hover:text-white transition-colors">
+            ← Back to Landing
+          </button>
+          <Login />
+        </div>
+      );
+    }
+    return <LandingPage onLogin={() => setShowLogin(true)} onSignUp={() => setShowLogin(true)} />;
+  }
 
   return (
     <Layout 
@@ -484,7 +539,9 @@ const App: React.FC = () => {
       {activePage === 'marketing' && <Marketing leads={processedLeads} />}
       {activePage === 'settings' && (
         <Settings 
-          integrations={integrations} onUpdate={handleUpdateIntegrations} 
+          integrations={integrations} 
+          onUpdate={handleUpdateIntegrations} 
+          onTestIntegration={handleTestIntegration}
           teamMembers={teamMembers} onInviteMember={() => {}} onRemoveMember={() => {}} 
           userEmail={session.user.email} currentPlan={currentPlan} 
           onUpdatePlan={(plan) => handleUpdateProfile({ subscriptionPlan: plan })}

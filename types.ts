@@ -74,33 +74,39 @@ export interface MessageLog {
   user_id?: string;
 }
 
+export interface IntegrationStatus {
+  enabled: boolean;
+  connected: boolean;
+  statusMessage?: string;
+  lastTested?: string;
+}
+
 export interface Integrations {
-  sms: {
-    enabled: boolean;
+  email: IntegrationStatus & {
+    provider: 'sendgrid' | 'mailgun' | 'smtp';
+    apiKey: string;
+    fromEmail: string;
+  };
+  sms: IntegrationStatus & {
     provider: 'twilio';
     accountSid: string;
     authToken: string;
     senderId: string;
     adminPhone: string;
-    connected: boolean;
     criticalAlertsEnabled: boolean;
     taskRemindersEnabled: boolean;
   };
-  whatsapp: {
-    enabled: boolean;
+  whatsapp: IntegrationStatus & {
     businessId: string;
     accessToken: string;
     phoneNumberId: string;
-    connected: boolean;
   };
-  google: {
-    connected: boolean;
+  google: IntegrationStatus & {
     customerId: string;
     developerToken: string;
     lastSync?: string;
   };
-  facebook: {
-    connected: boolean;
+  facebook: IntegrationStatus & {
     pageId: string;
     pageName?: string;
     accessToken: string;
