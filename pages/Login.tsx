@@ -60,7 +60,7 @@ export const Login: React.FC = () => {
         const { data, error: signUpError } = await supabase.auth.signUp({ 
           email, 
           password,
-          options: { emailRedirectTo: 'https://levrix.app' }
+          options: { emailRedirectTo: window.location.origin }
         });
         if (signUpError) throw signUpError;
         
@@ -85,9 +85,10 @@ export const Login: React.FC = () => {
     setIsGoogleLoading(true);
     setError(null);
     try {
-      // Explicitly redirect to production dashboard
-      // Ensure this EXACT string is added to your Supabase "Redirect URLs" list.
-      const redirectUrl = 'https://levrix.app';
+      // Best practice: use the current origin so redirects match the environment automatically.
+      // Important: Ensure BOTH 'https://levrix.app' and 'https://www.levrix.app' (and localhost)
+      // are added exactly as they appear in your browser address bar to the Supabase "Redirect URLs" list.
+      const redirectUrl = window.location.origin;
 
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',

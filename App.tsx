@@ -137,10 +137,14 @@ const App: React.FC = () => {
         if (error) throw error;
         setLeads((data || []).map((l: any) => ({
           ...l,
-          createdAt: l.created_at, lastContacted: l.last_contacted,
-          taskDueDate: l.task_due_date, taskCompleted: l.task_completed,
-          priorityScore: l.priority_score, propertyAddress: l.property_address,
-          campaignSource: l.campaign_source
+          createdAt: l.created_at, 
+          lastContacted: l.last_contacted,
+          taskDueDate: l.task_due_date, 
+          taskCompleted: l.task_completed,
+          priorityScore: l.priority_score, 
+          propertyAddress: l.property_address,
+          campaignSource: l.campaign_source,
+          nextFollowUpTask: l.next_follow_up_task
         })));
         setIsTablesReady(true);
     } catch (e) { 
@@ -300,19 +304,55 @@ const App: React.FC = () => {
     } catch (e) {}
   };
 
-  const handleAddLead = async (newLeadData: Omit<Lead, 'id' | 'createdAt'>) => {
+  const handleAddLead = async (newLeadData: any) => {
     if (!session?.user?.id) return;
-    await supabase.from('leads').insert([{ ...newLeadData, name: standardizeName(newLeadData.name), user_id: session.user.id }]);
+    try {
+      // Map camelCase UI fields to snake_case DB columns
+      const { error } = await supabase.from('leads').insert([{ 
+        name: standardizeName(newLeadData.name), 
+        email: newLeadData.email,
+        phone: newLeadData.phone,
+        source: newLeadData.source || 'Manual',
+        status: newLeadData.status || 'New',
+        stage: newLeadData.stage || 'Inquiry',
+        notes: newLeadData.notes,
+        property_address: newLeadData.propertyAddress,
+        campaign_source: newLeadData.campaignSource,
+        task_due_date: newLeadData.taskDueDate,
+        user_id: session.user.id 
+      }]);
+      
+      if (error) throw error;
+      
+      // Refresh local state to reflect the new lead immediately
+      await fetchLeads();
+    } catch (err) {
+      console.error("Error creating lead in Supabase:", err);
+    }
   };
 
   const handleUpdateLead = async (updatedLead: Lead) => {
     if (!session?.user?.id) return;
-    await supabase.from('leads').update({
-        name: standardizeName(updatedLead.name), email: updatedLead.email, phone: updatedLead.phone,
-        status: updatedLead.status, stage: updatedLead.stage, notes: updatedLead.notes,
-        task_due_date: updatedLead.taskDueDate, task_completed: updatedLead.taskCompleted,
-        property_address: updatedLead.propertyAddress, priority_score: updatedLead.priorityScore
-    }).eq('id', updatedLead.id);
+    try {
+      const { error } = await supabase.from('leads').update({
+          name: standardizeName(updatedLead.name), 
+          email: updatedLead.email, 
+          phone: updatedLead.phone,
+          status: updatedLead.status, 
+          stage: updatedLead.stage, 
+          notes: updatedLead.notes,
+          task_due_date: updatedLead.taskDueDate, 
+          task_completed: updatedLead.taskCompleted,
+          property_address: updatedLead.propertyAddress, 
+          priority_score: updatedLead.priorityScore,
+          next_follow_up_task: updatedLead.nextFollowUpTask
+      }).eq('id', updatedLead.id);
+
+      if (error) throw error;
+      await fetchLeads();
+    } catch (err) {
+      console.error("Error updating lead in Supabase:", err);
+    }
   };
 
   const handleLogout = async () => { 
