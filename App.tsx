@@ -57,7 +57,7 @@ const App: React.FC = () => {
   const [isTablesReady, setIsTablesReady] = useState(true);
   const [profile, setProfile] = useState<Partial<Profile>>({
     fullName: '',
-    companyName: 'Levrix',
+    companyName: 'levrix',
     logoUrl: DEFAULT_LOGO
   });
 
@@ -96,7 +96,10 @@ const App: React.FC = () => {
           campaignSource: l.campaign_source
         })));
         setIsTablesReady(true);
-    } catch (e) { setIsTablesReady(false); }
+    } catch (e) { 
+        console.error("Supabase leads fetch failed", e);
+        setIsTablesReady(false); 
+    }
   };
 
   const dispatchOutreach = async (to: string, content: string, channel: MessageChannel): Promise<boolean> => {
@@ -136,8 +139,7 @@ const App: React.FC = () => {
       }
 
       if (channel === 'email') {
-        // Placeholder for SMTP/Resend integration
-        console.log("Email relay would dispatch to:", to);
+        console.log("Email relay simulating dispatch to:", to);
         return true; 
       }
 
@@ -174,7 +176,6 @@ const App: React.FC = () => {
 
     if (newLogs.length > 0) {
       await supabase.from('message_logs').insert(newLogs);
-      // Update leads' lastContacted status
       await supabase.from('leads').update({ last_contacted: new Date().toISOString() }).in('id', leadIds);
     }
   };
@@ -226,9 +227,15 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const initAuth = async () => {
-      const { data: { session: initialSession } } = await supabase.auth.getSession();
-      setSession(initialSession);
-      setLoading(false);
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        setSession(data.session);
+      } catch (e) {
+        console.warn("Auth initialization failed - using demo access mode.", e);
+      } finally {
+        setLoading(false);
+      }
     };
     initAuth();
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => setSession(newSession));
@@ -293,7 +300,19 @@ const App: React.FC = () => {
   const handleLogout = async () => { await supabase.auth.signOut(); setSession(null); };
   const handleNavigate = (page: string, data?: any) => { setActivePage(page); if (data) setNavData(data); };
 
-  if (loading) return null;
+  if (loading) {
+    return (
+      <div className="h-screen w-screen flex items-center justify-center bg-[#0f2925]">
+        <div className="flex flex-col items-center gap-6 animate-pulse">
+           <div className="w-16 h-16 bg-emerald-500 rounded-3xl flex items-center justify-center shadow-2xl shadow-emerald-500/20">
+              <div className="w-8 h-8 border-4 border-white/20 border-t-white rounded-full animate-spin" />
+           </div>
+           <p className="text-emerald-500/50 text-xs font-black uppercase tracking-[0.3em]">levrix initializing</p>
+        </div>
+      </div>
+    );
+  }
+
   if (!session) return <Login />;
 
   return (

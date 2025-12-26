@@ -4,11 +4,14 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Levrix</title>
+    <title>levrix</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://js.paystack.co/v1/inline.js"></script>
     <script>
+      // Shim process for environments that do not natively provide it (like standard Vercel static sites)
+      window.process = window.process || { env: { API_KEY: '' } };
+      
       tailwind.config = {
         theme: {
           extend: {
@@ -82,5 +85,7 @@
 </head>
   <body>
     <div id="root"></div>
+    <!-- Explicit module import ensures execution in standard ES-aware environments -->
+    <script type="module" src="index.tsx"></script>
   </body>
 </html>
