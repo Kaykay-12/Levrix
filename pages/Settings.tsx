@@ -9,7 +9,7 @@ import {
   CheckCircle, Settings2, Code, ShieldCheck, 
   Mail, Image as ImageIcon, MessageCircle, Wifi, Database, 
   Key, Zap, Activity, ShieldAlert, ArrowRight, ExternalLink,
-  MessageSquare, Phone, Info, Send, CreditCard, Check, Sparkles, TrendingUp, Loader2, Upload, AlertCircle, X as XIcon, Lock, Globe2, Radio, Terminal, RefreshCw, ToggleLeft, ToggleRight
+  MessageSquare, Phone, Info, Send, CreditCard, Check, Sparkles, TrendingUp, Loader2, Upload, AlertCircle, X as XIcon, Lock, Globe2, Radio, Terminal, RefreshCw, ToggleLeft, ToggleRight, Users
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabaseClient';
@@ -133,11 +133,11 @@ export const Settings: React.FC<SettingsProps> = ({
             name: 'Starter', 
             price: 199, 
             features: [
-                'Lead Pipeline Management',
+                'Lead Pipeline Tracking',
                 'Email & SMS Outreach',
                 'AI Strategic Assistant',
-                '1 Team Member Access',
-                'Standard Analytics'
+                'Performance Analytics',
+                'Smart Buyer Profiles'
             ], 
             color: 'slate' 
         },
@@ -145,11 +145,11 @@ export const Settings: React.FC<SettingsProps> = ({
             name: 'Growth', 
             price: 399, 
             features: [
-                'WhatsApp Business API',
-                'AI Voice Intel (Audio Logs)',
-                'AI Priority Lead Scoring',
-                'Marketing Studio (Copywriting)',
-                'Up to 5 Team Members'
+                'WhatsApp Business Integration',
+                'AI Voice Intel Logs',
+                'Automated Priority Scoring',
+                'Marketing Hub Access',
+                'Advanced Campaign Tracking'
             ], 
             color: 'emerald' 
         },
@@ -157,11 +157,11 @@ export const Settings: React.FC<SettingsProps> = ({
             name: 'Pro', 
             price: 799, 
             features: [
-                'AI Property Visualization',
-                'AI Flyer Generation Suite',
+                'AI Property Render Studio',
+                'AI Flyer PDF Generation',
                 'Custom White-label Branding',
-                'Webhook Router Access',
-                'Unlimited Team Members'
+                'Webhook Router API Access',
+                'Priority Success Manager'
             ], 
             color: 'indigo' 
         }
@@ -413,8 +413,11 @@ export const Settings: React.FC<SettingsProps> = ({
                                     <h3 className="text-3xl font-black text-slate-900">{currentPlan}</h3>
                                 </div>
                             </div>
-                            <div className="px-6 py-2 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100">
-                                Per User Billing
+                            <div className="flex flex-col items-end gap-2">
+                                <div className="px-6 py-2 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
+                                    <Users className="w-3.5 h-3.5" /> Per User Billing
+                                </div>
+                                <p className="text-[10px] text-slate-400 font-bold">Billing for {teamMembers.length} active seat(s)</p>
                             </div>
                         </div>
                         <div className="p-12 grid md:grid-cols-3 gap-8 pt-8">
@@ -431,7 +434,10 @@ export const Settings: React.FC<SettingsProps> = ({
                                     <h4 className="text-xl font-bold text-slate-900">{plan.name}</h4>
                                     <div className="flex items-baseline mt-4">
                                         <span className="text-4xl font-black text-slate-900">₵{plan.price}</span>
-                                        <span className="text-slate-400 text-sm font-medium ml-1">/mo</span>
+                                        <div className="ml-2">
+                                            <p className="text-[9px] font-black uppercase text-slate-400">per user</p>
+                                            <p className="text-[9px] font-black uppercase text-slate-400">/ month</p>
+                                        </div>
                                     </div>
                                     <div className="mt-8 space-y-3 flex-1">
                                         {plan.features.map((feat, idx) => (

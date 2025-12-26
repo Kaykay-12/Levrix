@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Lead } from '../types';
-import { Sparkles, Palette, Megaphone, Download, Copy, RefreshCw, Wand2, Image as ImageIcon, Instagram, Facebook, Linkedin, Loader2, Home, Share2, Check, FileText, Layout, ArrowRight, Target, List } from 'lucide-react';
+import { Sparkles, Palette, Megaphone, Download, Copy, RefreshCw, Wand2, Image as ImageIcon, Instagram, Facebook, Linkedin, Loader2, Home, Share2, Check, FileText, Layout, ArrowRight, Target, List, Upload, X, Box, Layers } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
 import { cn } from '../lib/utils';
 
@@ -11,13 +11,18 @@ interface MarketingProps {
   leads: Lead[];
 }
 
+type StudioMode = 'creative' | 'visualizer';
+
 export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
+  const [mode, setMode] = useState<StudioMode>('creative');
   const [description, setDescription] = useState('');
   const [targetAudience, setTargetAudience] = useState('General Market');
   const [isGenerating, setIsGenerating] = useState(false);
+  const [uploadedImage, setUploadedImage] = useState<{data: string, type: string} | null>(null);
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [generatedCopy, setGeneratedCopy] = useState<{ig: string, fb: string, li: string, flyer: {headline: string, body: string, features: string[]}} | null>(null);
   const [copiedTab, setCopiedTab] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const uniqueProperties = Array.from(new Set(leads.map(l => l.propertyAddress).filter(Boolean)));
 
@@ -30,8 +35,27 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
     'Young Professionals'
   ];
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setUploadedImage({
+          data: (reader.result as string).split(',')[1],
+          type: file.type
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const clearUpload = () => {
+    setUploadedImage(null);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const handleGenerate = async () => {
-    if (!description.trim()) return;
+    if (!description.trim() && !uploadedImage) return;
     setIsGenerating(true);
     setGeneratedImage(null);
     setGeneratedCopy(null);
@@ -40,9 +64,26 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       
       // 1. Generate Image using gemini-2.5-flash-image
+      const imageParts: any[] = [];
+      
+      if (uploadedImage) {
+        imageParts.push({
+          inlineData: {
+            data: uploadedImage.data,
+            mimeType: uploadedImage.type
+          }
+        });
+      }
+
+      const promptText = mode === 'visualizer' 
+        ? `Generate a photorealistic, ultra-high-end 3D architectural render based on this reference. ${uploadedImage ? 'Extrapolate the 3D building structure from this floor plan or building image.' : ''} Ensure the building is modern, luxury, and features professional evening lighting. Maintain structural integrity but add premium materials (glass, wood, polished concrete). Surround it with lush landscaping. Description: ${description}`
+        : `A photorealistic, high-end architectural shot of this property: ${description}. Luxury real estate magazine style, evening twilight lighting, wide-angle lens, professional staging. If there are people, they should be professional African business people or families.`;
+
+      imageParts.push({ text: promptText });
+
       const imageResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
-        contents: [{ text: `A photorealistic, high-end architectural shot of this property: ${description}. Luxury real estate magazine style, evening twilight lighting, wide-angle lens, professional staging.` }],
+        contents: [{ parts: imageParts }],
         config: {
           imageConfig: {
             aspectRatio: "16:9"
@@ -64,6 +105,7 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
         model: 'gemini-3-flash-preview',
         contents: `Create marketing assets for this property: ${description}. 
         Target Audience: ${targetAudience}. 
+        Visual Style Note: ${mode === 'visualizer' ? 'The visuals are generated 3D renders from floor plans/concepts.' : 'The visuals are architectural photography.'}
         Tone Guidance: 
         - If First-time Homebuyers: Focus on approachability, security, and the dream of ownership.
         - If Investors: Focus on ROI, yield, appreciation potential, and market fundamentals.
@@ -75,11 +117,6 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
         2. Facebook post
         3. LinkedIn professional update
         4. A formal Flyer text (Headline, Body, and exactly 3-5 Key Features).
-        
-        CRITICAL INSTRUCTION FOR KEY FEATURES:
-        - The Key Features bullet points MUST be strictly derived from the property description provided.
-        - Prioritize specific amenities (e.g., "Infinity Pool"), architectural details (e.g., "Floor-to-ceiling windows"), or location benefits (e.g., "3 minutes from the metro") that are explicitly mentioned in the input text.
-        - Do not hallucinate features not present in the description unless they are logically implied (e.g., if a 5th floor penthouse, it has views).
         
         Format as JSON.`,
         config: {
@@ -131,7 +168,27 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h2 className="text-3xl font-bold tracking-tight text-slate-900">Marketing Studio</h2>
-          <p className="text-slate-500 mt-1">Generate AI-powered property flyers and social assets.</p>
+          <p className="text-slate-500 mt-1">AI-powered property assets and 3D architectural visualizer.</p>
+        </div>
+        <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-sm">
+            <button 
+                onClick={() => setMode('creative')}
+                className={cn(
+                    "flex items-center gap-2 px-6 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all",
+                    mode === 'creative' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                )}
+            >
+                <Palette className="w-4 h-4" /> Studio
+            </button>
+            <button 
+                onClick={() => setMode('visualizer')}
+                className={cn(
+                    "flex items-center gap-2 px-6 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all",
+                    mode === 'visualizer' ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
+                )}
+            >
+                <Box className="w-4 h-4" /> 3D Visualizer
+            </button>
         </div>
       </div>
 
@@ -142,15 +199,52 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
             <div className="h-1.5 w-full bg-slate-900" />
             <CardHeader className="pb-4 p-8">
               <CardTitle className="text-lg flex items-center gap-2">
-                <Palette className="w-5 h-5 text-slate-400" /> Creative Brief
+                {mode === 'creative' ? <Wand2 className="w-5 h-5 text-slate-400" /> : <Layers className="w-5 h-5 text-slate-400" />}
+                {mode === 'creative' ? 'Creative Brief' : '3D Component Upload'}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6 p-8 pt-0">
+              
+              <div className="space-y-3">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                   {mode === 'visualizer' ? 'Floor Plan / Concept Image' : 'Optional Reference Image'}
+                </label>
+                {!uploadedImage ? (
+                  <div 
+                    onClick={() => fileInputRef.current?.click()}
+                    className="border-2 border-dashed border-slate-200 rounded-3xl p-8 flex flex-col items-center justify-center gap-3 bg-slate-50 hover:bg-slate-100/50 hover:border-emerald-500/50 transition-all cursor-pointer group"
+                  >
+                    <div className="w-12 h-12 bg-white rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform">
+                       <Upload className="w-6 h-6 text-slate-400 group-hover:text-emerald-500" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-[10px] font-black uppercase text-slate-900 tracking-widest">Click to upload</p>
+                      <p className="text-[9px] text-slate-400 font-bold mt-1">PNG, JPG, SVG (Max 5MB)</p>
+                    </div>
+                    <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+                  </div>
+                ) : (
+                  <div className="relative rounded-3xl overflow-hidden aspect-video border border-slate-200 group bg-black">
+                     <img src={`data:image/${uploadedImage.type};base64,${uploadedImage.data}`} alt="Upload" className="w-full h-full object-contain opacity-70" />
+                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button onClick={clearUpload} className="bg-rose-500 text-white p-3 rounded-2xl shadow-xl transform scale-75 group-hover:scale-100 transition-transform">
+                           <X className="w-6 h-6" />
+                        </button>
+                     </div>
+                     <div className="absolute bottom-4 left-4 bg-black/60 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/10">
+                        <p className="text-[9px] font-black text-white uppercase tracking-widest">Reference Locked</p>
+                     </div>
+                  </div>
+                )}
+              </div>
+
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Property Description</label>
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">
+                    {mode === 'visualizer' ? '3D Render Instructions' : 'Property Description'}
+                </label>
                 <textarea 
                   className="w-full h-32 p-5 rounded-3xl border border-slate-200 bg-slate-50 focus:bg-white transition-all text-sm resize-none focus:outline-none focus:ring-4 focus:ring-slate-900/5 font-medium leading-relaxed"
-                  placeholder="E.g., Ultra-modern 5-bedroom villa with infinity pool..."
+                  placeholder={mode === 'visualizer' ? "E.g., Transform this floor plan into a luxury coastal villa with a cantilevered deck..." : "E.g., Ultra-modern 5-bedroom villa with infinity pool..."}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                 />
@@ -171,32 +265,15 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                 </select>
               </div>
 
-              {uniqueProperties.length > 0 && (
-                <div className="space-y-3">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">From Pipeline</p>
-                  <div className="flex flex-wrap gap-2">
-                    {uniqueProperties.slice(0, 4).map((prop, i) => (
-                      <button 
-                        key={i}
-                        onClick={() => setDescription(prop || '')}
-                        className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-2xl text-[10px] font-bold transition-all border border-slate-200"
-                      >
-                        {prop}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
               <Button 
                 className="w-full h-16 rounded-[28px] bg-slate-900 text-white font-black uppercase tracking-[0.2em] shadow-2xl shadow-slate-900/20 hover:-translate-y-1 active:scale-[0.98] transition-all"
                 onClick={handleGenerate}
-                disabled={isGenerating || !description.trim()}
+                disabled={isGenerating || (!description.trim() && !uploadedImage)}
               >
                 {isGenerating ? (
                   <><Loader2 className="w-5 h-5 mr-3 animate-spin" /> Rendering...</>
                 ) : (
-                  <><Sparkles className="w-5 h-5 mr-3 text-amber-400" /> Generate Studio Suite</>
+                  <><Sparkles className="w-5 h-5 mr-3 text-emerald-400" /> {mode === 'creative' ? 'Generate Studio Suite' : 'Extrapolate 3D Building'}</>
                 )}
               </Button>
             </CardContent>
@@ -206,11 +283,11 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
              <div className="absolute top-0 right-0 w-40 h-40 bg-emerald-500/10 rounded-full blur-[80px] -mr-20 -mt-20" />
              <CardContent className="p-10 space-y-4">
                 <div className="w-12 h-12 bg-emerald-500/20 rounded-2xl flex items-center justify-center border border-emerald-500/20">
-                  <Wand2 className="w-6 h-6 text-emerald-400" />
+                  <Box className="w-6 h-6 text-emerald-400" />
                 </div>
-                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-200/40">Studio Tip</h4>
+                <h4 className="text-[10px] font-black uppercase tracking-[0.3em] text-teal-200/40">3D Visualizer Tip</h4>
                 <p className="text-sm text-teal-100/60 leading-relaxed font-medium">
-                  Selecting a specific target audience like <span className="text-emerald-400">Investors</span> will shift the generated copy to focus on cap rates, ROI, and growth metrics.
+                  Upload a 2D <span className="text-emerald-400">Floor Plan</span> to give Gemini structural constraints. The AI will interpret dimensions and generate a realistic exterior 3D render.
                 </p>
              </CardContent>
           </Card>
@@ -225,7 +302,9 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                </div>
                <h3 className="text-3xl font-black text-slate-900 mb-2 tracking-tight">Studio Idle</h3>
                <p className="text-slate-500 max-w-xs mx-auto text-sm leading-relaxed font-medium">
-                  Provide a property brief and select an audience to start generating high-resolution visualizations and tailored copy.
+                  {mode === 'creative' 
+                    ? 'Provide a property brief or upload a reference image to start generating marketing assets.'
+                    : 'Upload a floor plan or building draft to generate a high-fidelity 3D architectural visualization.'}
                </p>
             </div>
           )}
@@ -238,7 +317,9 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                     <Sparkles className="w-12 h-12 text-emerald-400" />
                   </div>
                   <div>
-                    <h3 className="text-4xl font-black text-white mb-2 tracking-tight">Gemini Creating...</h3>
+                    <h3 className="text-4xl font-black text-white mb-2 tracking-tight">
+                        {mode === 'creative' ? 'Gemini Studio Suite...' : 'Generative 3D Building...'}
+                    </h3>
                     <p className="text-teal-100/40 text-xs font-black uppercase tracking-[0.3em]">Drafting Copy for {targetAudience}</p>
                   </div>
                   <div className="w-64 h-1.5 bg-white/10 rounded-full mx-auto overflow-hidden">
@@ -255,7 +336,9 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                  <Card className="overflow-hidden border-none shadow-3xl rounded-[64px] bg-slate-900 group relative">
                    <div className="absolute top-8 left-8 z-20">
                       <div className="bg-white/10 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/20">
-                         <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">AI Rendered Visualization</p>
+                         <p className="text-[10px] font-black uppercase tracking-widest text-emerald-400">
+                            {mode === 'creative' ? 'AI Rendered Visualization' : 'Generative 3D Building Output'}
+                         </p>
                       </div>
                    </div>
                    <div className="relative aspect-video w-full overflow-hidden">
@@ -266,13 +349,18 @@ export const Marketing: React.FC<MarketingProps> = ({ leads }) => {
                                 <h4 className="text-white font-black text-2xl tracking-tight">Ready for Listing</h4>
                                 <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1">High-Resolution Architectural Concept</p>
                               </div>
-                              <a 
-                                href={generatedImage} 
-                                download="property-concept.png" 
-                                className="bg-white text-slate-900 h-14 px-8 rounded-2xl flex items-center gap-3 font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-emerald-500 hover:text-white transition-all"
-                              >
-                                <Download className="w-5 h-5" /> Download
-                              </a>
+                              <div className="flex gap-4">
+                                <Button variant="outline" className="border-white/20 text-white hover:bg-white/10 h-14 rounded-2xl">
+                                    <RefreshCw className="w-5 h-5 mr-2" /> Re-Render
+                                </Button>
+                                <a 
+                                    href={generatedImage} 
+                                    download="property-concept.png" 
+                                    className="bg-white text-slate-900 h-14 px-8 rounded-2xl flex items-center gap-3 font-black uppercase text-xs tracking-widest shadow-2xl hover:bg-emerald-500 hover:text-white transition-all"
+                                >
+                                    <Download className="w-5 h-5" /> Download
+                                </a>
+                              </div>
                           </div>
                       </div>
                    </div>

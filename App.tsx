@@ -494,7 +494,7 @@ const App: React.FC = () => {
         </div>
       );
     }
-    return <LandingPage onLogin={() => setShowLogin(true)} onSignUp={() => setShowLogin(true)} />;
+    return <LandingPage onLogin={() => setShowLogin(true)} onSignUp={() => setShowLogin(true)} logoUrl={profile.logoUrl} />;
   }
 
   return (
