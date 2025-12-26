@@ -69,7 +69,7 @@ const App: React.FC = () => {
     }));
   }, [leads]);
 
-  // Real-time Supabase Subscription for Inbound Leads (Webhooks) and Messaging Updates
+  // Real-time Supabase Subscription
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -138,10 +138,7 @@ const App: React.FC = () => {
         return response.ok;
       }
 
-      if (channel === 'email') {
-        console.log("Email relay simulating dispatch to:", to);
-        return true; 
-      }
+      if (channel === 'email') return true; 
 
       return false;
     } catch (err) {
@@ -230,16 +227,37 @@ const App: React.FC = () => {
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) throw error;
-        setSession(data.session);
+        if (data.session) {
+          setSession(data.session);
+        }
       } catch (e) {
-        console.warn("Auth initialization failed - using demo access mode.", e);
+        console.warn("Initial session fetch failed", e);
       } finally {
         setLoading(false);
       }
     };
+
     initAuth();
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => setSession(newSession));
-    return () => subscription.unsubscribe();
+
+    // The subscription is key for handling OAuth redirects
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      console.log(`Auth Event: ${event}`);
+      setSession(newSession);
+      
+      // If we've just signed in via OAuth (like Google), ensure loading is off and session is set
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        setLoading(false);
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setActivePage('dashboard');
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
@@ -297,8 +315,15 @@ const App: React.FC = () => {
     }).eq('id', updatedLead.id);
   };
 
-  const handleLogout = async () => { await supabase.auth.signOut(); setSession(null); };
-  const handleNavigate = (page: string, data?: any) => { setActivePage(page); if (data) setNavData(data); };
+  const handleLogout = async () => { 
+    await supabase.auth.signOut(); 
+    setSession(null); 
+  };
+  
+  const handleNavigate = (page: string, data?: any) => { 
+    setActivePage(page); 
+    if (data) setNavData(data); 
+  };
 
   if (loading) {
     return (

@@ -28,10 +28,12 @@ export const Login: React.FC = () => {
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
 
   useEffect(() => {
+    // Check if there are error parameters in the hash (from Supabase Auth)
     const params = new URLSearchParams(window.location.hash.substring(1));
     if (params.get('error')) {
       const errorMsg = params.get('error_description') || 'Authentication failed';
       setError(errorMsg);
+      // Clean URL after reading errors
       window.history.replaceState(null, '', window.location.pathname);
     }
   }, []);
@@ -92,7 +94,13 @@ export const Login: React.FC = () => {
     try {
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin }
+        options: { 
+          redirectTo: window.location.origin,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent',
+          }
+        }
       });
       if (authError) throw authError;
     } catch (err: any) {
