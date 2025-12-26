@@ -69,7 +69,54 @@ const App: React.FC = () => {
     }));
   }, [leads]);
 
-  // Real-time Supabase Subscription
+  // Auth & Session Logic
+  useEffect(() => {
+    // 1. Initial Session Check
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      if (currentSession) {
+        setSession(currentSession);
+      }
+      // Only stop loading if we aren't in the middle of a redirect flow
+      if (!window.location.hash.includes('access_token=')) {
+        setLoading(false);
+      }
+    });
+
+    // 2. Listen for Auth Changes (Essential for OAuth)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      console.log(`Auth Event Triggered: ${event}`);
+      setSession(newSession);
+      
+      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+        setLoading(false);
+        // Instant URL cleanup to remove tokens from address bar
+        if (window.location.hash.includes('access_token=')) {
+          window.history.replaceState(null, '', window.location.pathname);
+        }
+      }
+      
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setLoading(false);
+      }
+    });
+
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  // Fetch data only when session is active
+  useEffect(() => {
+    if (session?.user) {
+      fetchLeads();
+      fetchLogs();
+      fetchProfile();
+      fetchTeam();
+    }
+  }, [session]);
+
+  // Real-time Supabase Subscription for leads/logs
   useEffect(() => {
     if (!session?.user?.id) return;
 
@@ -221,53 +268,6 @@ const App: React.FC = () => {
         await supabase.from('profiles').update({ integrations: newIntegrations }).eq('id', session.user.id);
     }
   };
-
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        if (error) throw error;
-        if (data.session) {
-          setSession(data.session);
-        }
-      } catch (e) {
-        console.warn("Initial session fetch failed", e);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    initAuth();
-
-    // The subscription is key for handling OAuth redirects
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      console.log(`Auth Event: ${event}`);
-      setSession(newSession);
-      
-      // If we've just signed in via OAuth (like Google), ensure loading is off and session is set
-      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        setLoading(false);
-      }
-      
-      if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setActivePage('dashboard');
-      }
-    });
-
-    return () => {
-      subscription.unsubscribe();
-    };
-  }, []);
-
-  useEffect(() => {
-    if (session?.user) {
-      fetchLeads();
-      fetchLogs();
-      fetchProfile();
-      fetchTeam();
-    }
-  }, [session]);
 
   const fetchLogs = async () => {
     try {

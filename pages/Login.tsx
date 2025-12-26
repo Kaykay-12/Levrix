@@ -28,12 +28,10 @@ export const Login: React.FC = () => {
   const [testStatus, setTestStatus] = useState<'idle' | 'testing' | 'success' | 'failed'>('idle');
 
   useEffect(() => {
-    // Check if there are error parameters in the hash (from Supabase Auth)
     const params = new URLSearchParams(window.location.hash.substring(1));
     if (params.get('error')) {
       const errorMsg = params.get('error_description') || 'Authentication failed';
       setError(errorMsg);
-      // Clean URL after reading errors
       window.history.replaceState(null, '', window.location.pathname);
     }
   }, []);
@@ -62,24 +60,19 @@ export const Login: React.FC = () => {
         const { data, error: signUpError } = await supabase.auth.signUp({ 
           email, 
           password,
-          options: { emailRedirectTo: window.location.origin }
+          options: { emailRedirectTo: 'https://levrix.app' }
         });
         if (signUpError) throw signUpError;
         
         if (data.user && data.session) {
            setMessage("Account created! Logging you in...");
         } else {
-           setMessage("Check your email inbox (and spam) for a verification link.");
+           setMessage("Check your email inbox for a verification link.");
            setShowTroubleshooting(true);
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-        if (signInError) {
-          if (signInError.message.includes('Email not confirmed')) {
-            setShowTroubleshooting(true);
-          }
-          throw signInError;
-        }
+        if (signInError) throw signInError;
       }
     } catch (err: any) {
       setError(err.message || "Authentication failed.");
@@ -92,10 +85,14 @@ export const Login: React.FC = () => {
     setIsGoogleLoading(true);
     setError(null);
     try {
+      // Explicitly redirect to production dashboard
+      // Ensure this EXACT string is added to your Supabase "Redirect URLs" list.
+      const redirectUrl = 'https://levrix.app';
+
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { 
-          redirectTo: window.location.origin,
+          redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -138,7 +135,7 @@ export const Login: React.FC = () => {
                 <CardTitle className="text-2xl font-bold text-slate-900">
                     {isSignUp ? 'Join the Future' : 'Welcome Back'}
                 </CardTitle>
-                <p className="text-slate-500 text-xs mt-2 px-6 font-medium">
+                <p className="text-slate-500 text-xs mt-2 px-6 font-medium text-center">
                     Automated Real Estate Lead Intelligence.
                 </p>
             </CardHeader>
