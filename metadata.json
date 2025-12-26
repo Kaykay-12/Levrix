@@ -1,0 +1,8 @@
+{
+  "name": "Levrix - Smart Lead Management",
+  "description": "A minimalist, AI-powered lead management platform for tracking conversions, scheduling follow-ups, and analyzing performance.",
+  "requestFramePermissions": [
+    "microphone",
+    "camera"
+  ]
+}
