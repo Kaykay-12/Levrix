@@ -99,5 +99,15 @@ export const INITIAL_LOGS: MessageLog[] = [
     status: 'Sent',
     content: 'Subject: Information on 124 Park Ave\n\nHi Sarah, thanks for your interest...',
     sentAt: new Date(Date.now() - 1000 * 60 * 60 * 1).toISOString(),
+  },
+  {
+    id: '102',
+    leadId: '2',
+    leadName: 'Michael Chen',
+    channel: 'whatsapp',
+    status: 'Queued',
+    content: 'Hi Michael, looking forward to showing you the space tomorrow.',
+    sentAt: new Date().toISOString(),
+    scheduledAt: new Date(Date.now() + 1000 * 60 * 60 * 12).toISOString(),
   }
 ];

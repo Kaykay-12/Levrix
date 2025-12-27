@@ -4,14 +4,14 @@ import { Lead, MessageLog, MessageChannel } from '../types';
 import { Card, CardHeader, CardTitle, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
-import { Mail, Smartphone, Send, Search, CheckSquare, History, Users, AlertCircle, MessageCircle, BellOff, Bell, ChevronLeft, ChevronRight, Wand2, Loader2, Sparkles, X, UserCheck, Layers, ClipboardCheck, BellRing, CheckCircle2 } from 'lucide-react';
+import { Mail, Smartphone, Send, Search, CheckSquare, History, Users, AlertCircle, MessageCircle, BellOff, Bell, ChevronLeft, ChevronRight, Wand2, Loader2, Sparkles, X, UserCheck, Layers, ClipboardCheck, BellRing, CheckCircle2, Clock, Calendar } from 'lucide-react';
 import { cn, formatDate } from '../lib/utils';
 import { GoogleGenAI } from "@google/genai";
 
 interface FollowUpProps {
   leads: Lead[];
   messageLogs: MessageLog[];
-  onSendMessage: (leadIds: string[], content: string, channel: MessageChannel, scheduledTime?: string) => void;
+  onSendMessage: (leadIds: string[], content: string, channel: MessageChannel, scheduledTime?: string) => Promise<void>;
   onScheduleFollowUp?: (leadIds: string[], date: string, task: string, details?: string) => void;
   initialSelectedLeadId?: string;
 }
@@ -27,6 +27,8 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
   const [isSending, setIsSending] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isScheduling, setIsScheduling] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState('');
   
   const [leadsPage, setLeadsPage] = useState(1);
   const [historyPage, setHistoryPage] = useState(1);
@@ -143,25 +145,35 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
     setSelectedIds(newIds);
   };
 
-  const handleSend = () => {
+  const handleSend = async () => {
     if (selectedIds.size === 0 || !message.trim()) return;
+    if (isScheduling && !scheduledDate) {
+      alert("Please select a date and time for scheduling.");
+      return;
+    }
+
     setIsSending(true);
     const currentSelection = Array.from(selectedIds);
     
-    setTimeout(() => {
-        onSendMessage(currentSelection, message, channel);
+    try {
+        await onSendMessage(currentSelection, message, channel, isScheduling ? scheduledDate : undefined);
         setIsSending(false);
         setSentSuccess(true);
         
-        // Brief success pause before resetting UI
+        // Brief success pause before resetting UI and switching to history
         setTimeout(() => {
             setSentSuccess(false);
             setMessage('');
+            setScheduledDate('');
+            setIsScheduling(false);
             setSelectedIds(new Set());
-            setHistoryPage(1); // Force return to page 1 for history
+            setHistoryPage(1); 
             setActiveTab('history');
-        }, 1500);
-    }, 1200);
+        }, 800);
+    } catch (err) {
+        setIsSending(false);
+        alert("Outreach dispatch failed. Please check your integrations.");
+    }
   };
 
   const getChannelIcon = (ch: MessageChannel) => {
@@ -191,8 +203,8 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
                   <div className="w-24 h-24 bg-emerald-500 rounded-[32px] flex items-center justify-center shadow-2xl shadow-emerald-500/20 mb-8">
                       <CheckCircle2 className="w-12 h-12 text-white" />
                   </div>
-                  <h3 className="text-3xl font-bold text-slate-900 mb-2">Outreach Dispatched</h3>
-                  <p className="text-slate-500 font-medium">Messages delivered to your pipeline successfully.</p>
+                  <h3 className="text-3xl font-bold text-slate-900 mb-2">{isScheduling ? 'Outreach Scheduled' : 'Outreach Dispatched'}</h3>
+                  <p className="text-slate-500 font-medium">{isScheduling ? 'Your message has been queued for delivery.' : 'Messages delivered to your pipeline successfully.'}</p>
               </div>
           </div>
       )}
@@ -341,7 +353,7 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
                                         <td className="px-4 py-6 pr-8">
                                             <div className="flex items-center justify-end gap-4">
                                                 <div className="h-2 w-20 bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                                                    <div className="h-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.3)]" style={{ width: `${lead.priorityScore || 50}%` }} />
+                                                    <div className="h-full bg-emerald-500 shadow-[0_0_8px_rgba(52,211,153,0.3)]" style={{ width: `${lead.priorityScore || 50}%` }} />
                                                 </div>
                                                 <span className="text-[10px] font-black text-slate-400 tracking-tighter">{lead.priorityScore || '--'}%</span>
                                             </div>
@@ -357,8 +369,8 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
                             <tr>
                                 <th className="px-8 py-5">Method</th>
                                 <th className="px-4 py-5">Lead & Content Preview</th>
-                                <th className="px-4 py-5">Delivery</th>
-                                <th className="px-4 py-5 text-right pr-8">Timestamp</th>
+                                <th className="px-4 py-5">Status</th>
+                                <th className="px-4 py-5 text-right pr-8">Scheduled / Sent</th>
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
@@ -389,14 +401,25 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
                                         </td>
                                         <td className="px-4 py-6">
                                             <span className={cn(
-                                                "text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border transition-all shadow-sm",
+                                                "text-[9px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full border transition-all shadow-sm flex items-center w-fit gap-1.5",
                                                 getStatusColor(log.status)
                                             )}>
-                                                {log.status}
+                                                {log.status === 'Queued' ? <Clock className="w-2.5 h-2.5" /> : <CheckCircle2 className="w-2.5 h-2.5" />}
+                                                {log.status === 'Queued' ? 'Scheduled' : log.status}
                                             </span>
                                         </td>
-                                        <td className="px-4 py-6 text-right pr-8 text-slate-400 text-[11px] font-bold">
-                                            {formatDate(log.sentAt)}
+                                        <td className="px-4 py-6 text-right pr-8">
+                                            <div className="flex flex-col items-end">
+                                                <span className={cn(
+                                                    "text-[11px] font-bold",
+                                                    log.status === 'Queued' ? "text-amber-600" : "text-slate-400"
+                                                )}>
+                                                    {formatDate(log.status === 'Queued' && log.scheduledAt ? log.scheduledAt : log.sentAt)}
+                                                </span>
+                                                {log.status === 'Queued' && (
+                                                    <span className="text-[9px] font-black uppercase text-amber-500/60 tracking-widest mt-0.5">Target Delivery</span>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))
@@ -463,7 +486,7 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
 
                     <div className="relative group">
                         <textarea 
-                            className="w-full h-64 p-6 rounded-[32px] border-slate-100 bg-slate-50 focus:bg-white transition-all text-sm resize-none focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500/20 leading-relaxed shadow-inner font-medium"
+                            className="w-full h-48 p-6 rounded-[32px] border-slate-100 bg-slate-50 focus:bg-white transition-all text-sm resize-none focus:outline-none focus:ring-4 focus:ring-emerald-500/5 focus:border-emerald-500/20 leading-relaxed shadow-inner font-medium"
                             placeholder={selectedIds.size > 0 ? "Type outreach message... (Tip: Use {{name}} tag)" : "Select leads from your pipeline to unlock the composer..."}
                             value={message}
                             onChange={(e) => setMessage(e.target.value)}
@@ -484,6 +507,40 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
                         </button>
                     </div>
 
+                    {/* Scheduling Section */}
+                    <div className="p-6 bg-slate-50 border border-slate-100 rounded-[32px] space-y-4">
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Clock className={cn("w-4 h-4 transition-colors", isScheduling ? "text-emerald-500" : "text-slate-400")} />
+                                <span className="text-[10px] font-black uppercase tracking-widest text-slate-900">Schedule for Later</span>
+                            </div>
+                            <button 
+                                onClick={() => setIsScheduling(!isScheduling)}
+                                className={cn(
+                                    "w-10 h-5 rounded-full transition-all relative border",
+                                    isScheduling ? "bg-emerald-500 border-emerald-500 shadow-lg shadow-emerald-500/20" : "bg-slate-200 border-slate-300"
+                                )}
+                            >
+                                <div className={cn(
+                                    "absolute top-0.5 w-3.5 h-3.5 bg-white rounded-full transition-all",
+                                    isScheduling ? "right-1" : "left-1"
+                                )} />
+                            </button>
+                        </div>
+                        {isScheduling && (
+                            <div className="animate-in slide-in-from-top-2 duration-300 space-y-2">
+                                <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1">Dispatch Date & Time</label>
+                                <Input 
+                                    type="datetime-local" 
+                                    className="h-10 bg-white rounded-xl text-xs" 
+                                    value={scheduledDate}
+                                    onChange={(e) => setScheduledDate(e.target.value)}
+                                    min={new Date().toISOString().substring(0, 16)}
+                                />
+                            </div>
+                        )}
+                    </div>
+
                     <div className="space-y-4">
                         <Button 
                             className={cn(
@@ -495,9 +552,11 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
                             isLoading={isSending}
                         >
                             {sentSuccess ? (
-                                <><CheckCircle2 className="w-5 h-5 mr-3" /> Dispatched</>
+                                <><CheckCircle2 className="w-5 h-5 mr-3" /> {isScheduling ? 'Scheduled' : 'Dispatched'}</>
                             ) : isSending ? (
-                                'Delivering...'
+                                'Processing...'
+                            ) : isScheduling ? (
+                                <><Calendar className="w-5 h-5 mr-3" /> Schedule Outreach</>
                             ) : (
                                 <><Send className="w-5 h-5 mr-3" /> Blast Outreach</>
                             )}
@@ -573,8 +632,8 @@ export const FollowUp: React.FC<FollowUpProps> = ({ leads, messageLogs, onSendMe
                                   <p className="text-xs font-black text-slate-900 font-mono tracking-tighter">#{selectedLog.id}</p>
                               </div>
                               <div className="p-6 bg-white border border-slate-100 rounded-[28px] text-center shadow-sm">
-                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Campaign</p>
-                                  <p className="text-xs font-black text-slate-900 tracking-tight">Active Pulse v4</p>
+                                  <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-3">Scheduled At</p>
+                                  <p className="text-xs font-black text-slate-900 tracking-tight">{selectedLog.scheduledAt ? formatDate(selectedLog.scheduledAt) : 'N/A'}</p>
                               </div>
                           </div>
                           <div className="pt-6 flex gap-4">

@@ -17,7 +17,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { BellRing, CheckCircle2 } from 'lucide-react';
 import { cn } from './lib/utils';
 
-const DEFAULT_LOGO = "./logo.png";
+const DEFAULT_LOGO = ""; // Changed from "./logo.png" to trigger fallback correctly
 const METADATA_TAG = "---LEVRIX_METADATA---";
 
 const DEFAULT_INTEGRATIONS: Integrations = {
@@ -161,7 +161,7 @@ const App: React.FC = () => {
         fetchLeads();
       })
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_logs' }, () => {
-        showToast(`Message Dispatched Successfully`, 'info');
+        showToast(`Outreach Log Updated`, 'info');
         fetchLogs();
       })
       .subscribe();
@@ -203,6 +203,16 @@ const App: React.FC = () => {
     } catch (e: any) { 
         console.error("Supabase fetchLeads failed:", e.message || e);
         setIsTablesReady(false); 
+    }
+  };
+
+  const fetchLogs = async () => {
+    try {
+        const { data, error } = await supabase.from('message_logs').select('*').order('sent_at', { ascending: false });
+        if (error) throw error;
+        setMessageLogs((data || []).map((l: any) => ({ ...l, sentAt: l.sent_at, scheduledAt: l.scheduled_at, leadId: l.lead_id, leadName: l.lead_name })));
+    } catch (e) {
+        console.error("fetchLogs failed", e);
     }
   };
 
@@ -324,7 +334,7 @@ const App: React.FC = () => {
     } catch (err) { return false; }
   };
 
-  const handleSendMessage = async (leadIds: string[], content: string, channel: MessageChannel) => {
+  const handleSendMessage = async (leadIds: string[], content: string, channel: MessageChannel, scheduledTime?: string) => {
     if (!session?.user?.id) return;
     
     // Check if the channel is actually functional
@@ -334,20 +344,45 @@ const App: React.FC = () => {
     }
 
     const newLogs = [];
+    const now = new Date().toISOString();
+
     for (const id of leadIds) {
       const lead = leads.find(l => l.id === id);
       if (!lead) continue;
       const destination = channel === 'email' ? lead.email : lead.phone;
       const personalizedMessage = content.replace(/\{\{name\}\}/g, lead.name);
-      const success = await dispatchOutreach(destination, personalizedMessage, channel);
-      newLogs.push({ lead_id: id, lead_name: lead.name, channel, status: success ? 'Sent' : 'Failed', content: personalizedMessage, sent_at: new Date().toISOString(), user_id: session.user.id });
+      
+      let status: 'Sent' | 'Failed' | 'Queued' = 'Queued';
+      
+      if (!scheduledTime) {
+        const success = await dispatchOutreach(destination, personalizedMessage, channel);
+        status = success ? 'Sent' : 'Failed';
+      }
+
+      newLogs.push({ 
+        lead_id: id, 
+        lead_name: lead.name, 
+        channel, 
+        status, 
+        content: personalizedMessage, 
+        sent_at: now, 
+        scheduled_at: scheduledTime || null,
+        user_id: session.user.id 
+      });
     }
+
     if (newLogs.length > 0) {
       try {
         await supabase.from('message_logs').insert(newLogs);
-        await supabase.from('leads').update({ last_contacted: new Date().toISOString() }).in('id', leadIds);
+        if (!scheduledTime) {
+          await supabase.from('leads').update({ last_contacted: now }).in('id', leadIds);
+        }
+        showToast(scheduledTime ? "Message(s) queued for delivery" : "Outreach dispatched successfully", 'success');
+        // Explicitly refresh logs after insertion for real-time history update
+        await fetchLogs();
       } catch (err) {
         console.error("Log persistence failed", err);
+        throw err;
       }
     }
   };
@@ -392,16 +427,6 @@ const App: React.FC = () => {
       const updated = { ...integrations, [service]: { ...current, connected: result.connected, statusMessage: result.message, lastTested: new Date().toISOString() } };
       handleUpdateIntegrations(updated);
       return result;
-  };
-
-  const fetchLogs = async () => {
-    try {
-        const { data, error } = await supabase.from('message_logs').select('*').order('sent_at', { ascending: false });
-        if (error) throw error;
-        setMessageLogs((data || []).map((l: any) => ({ ...l, sentAt: l.sent_at, scheduledAt: l.scheduled_at, leadId: l.lead_id, leadName: l.lead_name })));
-    } catch (e) {
-        console.error("fetchLogs failed", e);
-    }
   };
 
   const fetchProfile = async () => {
@@ -514,7 +539,7 @@ const App: React.FC = () => {
               {toast.type === 'success' ? <BellRing className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
            </div>
            <div>
-              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Real-Time Event</p>
+              <p className="text-[10px] font-black uppercase tracking-widest opacity-60">System Notification</p>
               <p className="text-sm font-bold">{toast.message}</p>
            </div>
         </div>

@@ -85,9 +85,6 @@ export const Login: React.FC = () => {
     setIsGoogleLoading(true);
     setError(null);
     try {
-      // Best practice: use the current origin so redirects match the environment automatically.
-      // Important: Ensure BOTH 'https://levrix.app' and 'https://www.levrix.app' (and localhost)
-      // are added exactly as they appear in your browser address bar to the Supabase "Redirect URLs" list.
       const redirectUrl = window.location.origin;
 
       const { error: authError } = await supabase.auth.signInWithOAuth({

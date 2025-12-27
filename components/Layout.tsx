@@ -22,10 +22,11 @@ export const Layout: React.FC<LayoutProps> = ({
   onLogout, 
   userEmail, 
   riskCount = 0,
-  logoUrl = "./logo.png",
+  logoUrl = "",
   companyName = "levrix"
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [logoError, setLogoError] = useState(false);
 
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -41,15 +42,21 @@ export const Layout: React.FC<LayoutProps> = ({
       {/* Sidebar - Desktop */}
       <aside className="w-64 flex-none hidden md:flex flex-col p-6 text-white bg-[#0f2925]">
         <div className="mb-10 px-2">
-           <div className="flex items-center gap-3 transform hover:scale-[1.02] transition-transform duration-300">
-              <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20">
-                <img 
-                  src={logoUrl} 
-                  alt="Logo" 
-                  className="h-6 w-6 object-contain brightness-0 invert" 
-                  onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                />
-                {!logoUrl && <Sparkles className="w-5 h-5 text-white" />}
+           <div 
+             className="flex items-center gap-3 group cursor-pointer" 
+             onClick={() => onNavigate('dashboard')}
+           >
+              <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20 group-hover:rotate-12 transition-transform duration-500 overflow-hidden">
+                {logoUrl && !logoError ? (
+                  <img 
+                    src={logoUrl} 
+                    alt="Logo" 
+                    className="w-full h-full object-contain p-2 brightness-0 invert" 
+                    onError={() => setLogoError(true)}
+                  />
+                ) : (
+                  <Sparkles className="w-5 h-5 text-white" />
+                )}
               </div>
               <span className="text-2xl font-black tracking-tighter text-white">
                 levrix<span className="text-emerald-500">.</span>
