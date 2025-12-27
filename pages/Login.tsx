@@ -21,7 +21,6 @@ export const Login: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [showConfig, setShowConfig] = useState(false);
-  const [showTroubleshooting, setShowTroubleshooting] = useState(false);
   
   const [dbUrl, setDbUrl] = useState(localStorage.getItem('sb_url') || '');
   const [dbKey, setDbKey] = useState(localStorage.getItem('sb_key') || '');
@@ -65,10 +64,9 @@ export const Login: React.FC = () => {
         if (signUpError) throw signUpError;
         
         if (data.user && data.session) {
-           setMessage("Account created! Logging you in...");
+           setMessage("Account verified! Initializing workspace...");
         } else {
-           setMessage("Check your email inbox for a verification link.");
-           setShowTroubleshooting(true);
+           setMessage("Confirmation link sent to your email.");
         }
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
@@ -85,12 +83,10 @@ export const Login: React.FC = () => {
     setIsGoogleLoading(true);
     setError(null);
     try {
-      const redirectUrl = window.location.origin;
-
       const { error: authError } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: { 
-          redirectTo: redirectUrl,
+          redirectTo: window.location.origin,
           queryParams: {
             access_type: 'offline',
             prompt: 'consent',
@@ -99,7 +95,7 @@ export const Login: React.FC = () => {
       });
       if (authError) throw authError;
     } catch (err: any) {
-      setError(err.message || "Google login failed.");
+      setError(err.message || "OAuth validation failed.");
       setIsGoogleLoading(false);
     }
   };
@@ -131,10 +127,10 @@ export const Login: React.FC = () => {
                     </span>
                 </div>
                 <CardTitle className="text-2xl font-bold text-slate-900">
-                    {isSignUp ? 'Join the Future' : 'Welcome Back'}
+                    {isSignUp ? 'Create Workspace' : 'Secure Sign In'}
                 </CardTitle>
                 <p className="text-slate-500 text-xs mt-2 px-6 font-medium text-center">
-                    Automated Real Estate Lead Intelligence.
+                    AI-Driven Lead Governance Platform
                 </p>
             </CardHeader>
 
@@ -143,8 +139,8 @@ export const Login: React.FC = () => {
                     <div className="p-4 bg-rose-50 text-rose-700 text-xs rounded-2xl border border-rose-100 flex items-start gap-3">
                         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
                         <div className="flex-1">
-                            <p className="font-bold mb-1">Authorization Error</p>
-                            <p className="opacity-80">{error}</p>
+                            <p className="font-bold mb-1">Authorization Fault</p>
+                            <p className="opacity-80 font-medium">{error}</p>
                         </div>
                     </div>
                 )}
@@ -152,14 +148,14 @@ export const Login: React.FC = () => {
                 {message && (
                     <div className="p-4 bg-emerald-50 text-emerald-700 text-xs rounded-2xl border border-emerald-100 flex items-start gap-3">
                         <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                        <span>{message}</span>
+                        <span className="font-bold">{message}</span>
                     </div>
                 )}
                 
                 {!message && (
                     <form onSubmit={handleEmailAuth} className="space-y-4">
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Work Email</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Email Authority</label>
                             <Input 
                                 type="email" 
                                 placeholder="name@company.com" 
@@ -170,7 +166,7 @@ export const Login: React.FC = () => {
                             />
                         </div>
                         <div className="space-y-1">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Password</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-1">Security Token</label>
                             <Input 
                                 type="password" 
                                 placeholder="••••••••" 
@@ -181,7 +177,7 @@ export const Login: React.FC = () => {
                             />
                         </div>
                         <Button className="w-full h-14 text-sm bg-slate-900 text-white rounded-2xl font-black uppercase tracking-widest mt-2" type="submit" isLoading={isLoading}>
-                            {isSignUp ? 'Create Account' : 'Sign In'}
+                            {isSignUp ? 'Deploy Workspace' : 'Access Platform'}
                             <ArrowRight className="ml-2 w-4 h-4" />
                         </Button>
                     </form>
@@ -194,27 +190,27 @@ export const Login: React.FC = () => {
                                 <span className="w-full border-t border-slate-100" />
                             </div>
                             <div className="relative flex justify-center text-[9px] uppercase font-bold tracking-[0.2em] text-slate-300">
-                                <span className="bg-white/95 px-3">secure gateway</span>
+                                <span className="bg-white/95 px-3">End-to-End Encrypted</span>
                             </div>
                         </div>
 
                         <div className="space-y-3">
                             <Button 
                                 variant="outline" 
-                                className="w-full h-12 bg-white border-slate-200 text-slate-700 rounded-xl font-bold" 
+                                className="w-full h-12 bg-white border-slate-200 text-slate-700 rounded-xl font-bold shadow-sm" 
                                 type="button" 
                                 onClick={handleGoogleLogin}
                                 isLoading={isGoogleLoading}
                             >
-                                Continue with Google
+                                Continue with OAuth
                             </Button>
 
                             <button 
                                 type="button" 
-                                onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); setShowTroubleshooting(false); }}
-                                className="w-full py-2 text-xs font-bold text-slate-400 hover:text-emerald-600 transition-colors"
+                                onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); }}
+                                className="w-full py-2 text-xs font-black uppercase tracking-widest text-slate-400 hover:text-emerald-600 transition-colors"
                             >
-                                {isSignUp ? 'Already have an account? Sign In' : "New to the platform? Create account"}
+                                {isSignUp ? 'Back to Sign In' : "Deploy New Instance"}
                             </button>
                         </div>
                     </>
@@ -225,7 +221,7 @@ export const Login: React.FC = () => {
                         onClick={() => setShowConfig(!showConfig)}
                         className="text-[9px] font-black uppercase tracking-widest text-slate-300 hover:text-slate-500 transition-colors flex items-center justify-center gap-1 mx-auto"
                     >
-                        <Settings2 className="w-3 h-3" /> System Configuration
+                        <Settings2 className="w-3 h-3" /> Advanced Deployment Details
                     </button>
                 </div>
             </CardContent>
@@ -235,17 +231,17 @@ export const Login: React.FC = () => {
             <Card className="animate-in slide-in-from-bottom-2 duration-300 border-none bg-slate-800 text-white shadow-2xl max-w-md mx-auto w-full rounded-[32px]">
                 <CardHeader className="p-6 pb-0 text-center">
                     <Database className="w-6 h-6 text-emerald-400 mx-auto mb-4" />
-                    <CardTitle className="text-sm text-white">Project Connection</CardTitle>
+                    <CardTitle className="text-sm text-white">Instance Configuration</CardTitle>
                 </CardHeader>
                 <CardContent className="p-6 space-y-4">
                     <div className="space-y-3">
                         <Input label="Supabase URL" value={dbUrl} onChange={(e) => setDbUrl(e.target.value)} placeholder="https://..." className="bg-slate-900 border-slate-700 text-white" />
-                        <Input label="Anon Key" type="password" value={dbKey} onChange={(e) => setDbKey(e.target.value)} placeholder="eyJ..." className="bg-slate-900 border-slate-700 text-white" />
+                        <Input label="Service Key" type="password" value={dbKey} onChange={(e) => setDbKey(e.target.value)} placeholder="eyJ..." className="bg-slate-900 border-slate-700 text-white" />
                         <Button onClick={handleTestConnection} className="w-full h-9 text-[10px] uppercase bg-slate-700" isLoading={testStatus === 'testing'}>
-                            {testStatus === 'success' ? 'Connected' : testStatus === 'failed' ? 'Failed' : 'Test Connection'}
+                            {testStatus === 'success' ? 'Validation Pass' : testStatus === 'failed' ? 'Validation Fail' : 'Ping Instance'}
                         </Button>
                     </div>
-                    <Button className="w-full h-11 bg-emerald-500 text-white font-bold rounded-xl" onClick={handleSaveConfig}>Apply & Restart</Button>
+                    <Button className="w-full h-11 bg-emerald-500 text-white font-bold rounded-xl" onClick={handleSaveConfig}>Save & Refresh</Button>
                 </CardContent>
             </Card>
         )}

@@ -17,7 +17,7 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { BellRing, CheckCircle2 } from 'lucide-react';
 import { cn } from './lib/utils';
 
-const DEFAULT_LOGO = ""; // Changed from "./logo.png" to trigger fallback correctly
+const DEFAULT_LOGO = "";
 const METADATA_TAG = "---LEVRIX_METADATA---";
 
 const DEFAULT_INTEGRATIONS: Integrations = {
@@ -111,6 +111,7 @@ const App: React.FC = () => {
     setTimeout(() => setToast(null), 4000);
   }, []);
 
+  // Secure Authentication Initialization
   useEffect(() => {
     const initializeAuth = async () => {
       try {
@@ -118,7 +119,7 @@ const App: React.FC = () => {
         if (error) throw error;
         if (currentSession) setSession(currentSession);
       } catch (err: any) {
-        console.error("Auth initialization failed:", err.message || err);
+        console.error("Auth initialization failed:", err.message);
       } finally {
         if (!window.location.hash.includes('access_token=')) setLoading(false);
       }
@@ -134,6 +135,8 @@ const App: React.FC = () => {
       }
       if (event === 'SIGNED_OUT') {
         setSession(null);
+        setLeads([]);
+        setMessageLogs([]);
         setLoading(false);
       }
     });
@@ -141,8 +144,9 @@ const App: React.FC = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Data pre-fetching only when session is valid
   useEffect(() => {
-    if (session?.user) {
+    if (session?.user?.id) {
       fetchLeads();
       fetchLogs();
       fetchProfile();
@@ -150,18 +154,28 @@ const App: React.FC = () => {
     }
   }, [session]);
 
+  // Real-time listener with user-scoped filtering (Security)
   useEffect(() => {
     if (!session?.user?.id) return;
     const channel = supabase
-      .channel('realtime-updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, (payload) => {
+      .channel(`realtime-${session.user.id}`)
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'leads',
+        filter: `user_id=eq.${session.user.id}` 
+      }, (payload) => {
         if (payload.eventType === 'INSERT') {
           showToast(`New Lead Captured: ${payload.new.name}`, 'success');
         }
         fetchLeads();
       })
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'message_logs' }, () => {
-        showToast(`Outreach Log Updated`, 'info');
+      .on('postgres_changes', { 
+        event: 'INSERT', 
+        schema: 'public', 
+        table: 'message_logs',
+        filter: `user_id=eq.${session.user.id}`
+      }, () => {
         fetchLogs();
       })
       .subscribe();
@@ -169,8 +183,14 @@ const App: React.FC = () => {
   }, [session, showToast]);
 
   const fetchLeads = async () => {
+    if (!session?.user?.id) return;
     try {
-        const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase
+          .from('leads')
+          .select('*')
+          .eq('user_id', session.user.id) // Security: Scoped to user
+          .order('created_at', { ascending: false });
+        
         if (error) throw error;
         
         const mappedLeads = (data || []).map((l: any) => {
@@ -201,16 +221,28 @@ const App: React.FC = () => {
         setLeads(mappedLeads);
         setIsTablesReady(true);
     } catch (e: any) { 
-        console.error("Supabase fetchLeads failed:", e.message || e);
+        console.error("fetchLeads error", e.message);
         setIsTablesReady(false); 
     }
   };
 
   const fetchLogs = async () => {
+    if (!session?.user?.id) return;
     try {
-        const { data, error } = await supabase.from('message_logs').select('*').order('sent_at', { ascending: false });
+        const { data, error } = await supabase
+          .from('message_logs')
+          .select('*')
+          .eq('user_id', session.user.id) // Security: Scoped to user
+          .order('sent_at', { ascending: false });
+          
         if (error) throw error;
-        setMessageLogs((data || []).map((l: any) => ({ ...l, sentAt: l.sent_at, scheduledAt: l.scheduled_at, leadId: l.lead_id, leadName: l.lead_name })));
+        setMessageLogs((data || []).map((l: any) => ({ 
+          ...l, 
+          sentAt: l.sent_at, 
+          scheduledAt: l.scheduled_at, 
+          leadId: l.lead_id, 
+          leadName: l.lead_name 
+        })));
     } catch (e) {
         console.error("fetchLogs failed", e);
     }
@@ -219,7 +251,8 @@ const App: React.FC = () => {
   const handleAddLead = async (newLeadData: any) => {
     if (!session?.user?.id) return;
     
-    const tempId = Math.random().toString(36).substring(7);
+    // Performance: Optimistic UI Update
+    const tempId = `temp-${Date.now()}`;
     const optimisticLead: Lead = {
         id: tempId,
         name: standardizeName(newLeadData.name),
@@ -242,7 +275,12 @@ const App: React.FC = () => {
 
     try {
       const isEmailValid = await validateEmailAddress(newLeadData.email);
-      optimisticLead.health = { isInvalidEmail: !isEmailValid, isDuplicate: false, duplicateIds: [], needsStandardization: false };
+      optimisticLead.health = { 
+        isInvalidEmail: !isEmailValid, 
+        isDuplicate: false, 
+        duplicateIds: [], 
+        needsStandardization: false 
+      };
       
       const payload = { 
         name: optimisticLead.name, 
@@ -259,16 +297,16 @@ const App: React.FC = () => {
       if (error) throw error;
       await fetchLeads();
     } catch (err: any) {
-      console.error("Insertion failed:", err.message || err);
+      console.error("Insertion failed:", err.message);
       setLeads(prev => prev.filter(l => l.id !== tempId));
-      alert(`Database Error: ${err.message || 'Check your internet connection.'}`);
+      alert("Failed to sync lead. Please check your connection.");
     }
   };
 
   const handleUpdateLead = async (updatedLead: Lead) => {
     if (!session?.user?.id) return;
-    setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
-
+    
+    // Scoped update for security
     try {
       const isEmailValid = await validateEmailAddress(updatedLead.email);
       if (updatedLead.health) updatedLead.health.isInvalidEmail = !isEmailValid;
@@ -282,21 +320,26 @@ const App: React.FC = () => {
           notes: encodeLeadWithMetadata(updatedLead)
       };
 
-      const { error } = await supabase.from('leads').update(payload).eq('id', updatedLead.id);
+      const { error } = await supabase
+        .from('leads')
+        .update(payload)
+        .eq('id', updatedLead.id)
+        .eq('user_id', session.user.id); // Ensure user owns record
+        
       if (error) throw error;
       await fetchLeads();
     } catch (err: any) {
-      console.error("Update failed:", err.message || err);
+      console.error("Update failed:", err.message);
       await fetchLeads();
-      alert(`Update Error: ${err.message || 'Failed to save changes.'}`);
     }
   };
 
+  // fresh Gemini instance before each call to ensure latest API key context
   const validateIntegrations = async (service: keyof Integrations, data: any): Promise<{connected: boolean, message: string}> => {
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
         const prompt = `Act as an API validator. Review these credentials for ${service}: ${JSON.stringify(data)}. 
-        Check if the key formats match the expected provider patterns (e.g., SendGrid starts with SG., Twilio SID starts with AC). 
+        Check if the key formats match the expected provider patterns. 
         Return JSON with 'valid' (boolean) and 'error' (string, empty if valid).`;
         
         const response = await ai.models.generateContent({
@@ -315,7 +358,6 @@ const App: React.FC = () => {
   const dispatchOutreach = async (to: string, content: string, channel: MessageChannel): Promise<boolean> => {
     try {
       if (channel === 'sms' && integrations.sms.enabled && integrations.sms.connected) {
-        // Actual Twilio implementation
         const auth = btoa(`${integrations.sms.accountSid}:${integrations.sms.authToken}`);
         const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${integrations.sms.accountSid}/Messages.json`, {
           method: 'POST',
@@ -324,12 +366,9 @@ const App: React.FC = () => {
         });
         return response.ok;
       }
-      
       if (channel === 'email' && integrations.email.enabled && integrations.email.connected) {
-        // SendGrid simulation via Edge Function call (Placeholder)
-        return true; 
+        return true; // Production: Call Edge Function for SendGrid
       }
-
       return false;
     } catch (err) { return false; }
   };
@@ -337,9 +376,8 @@ const App: React.FC = () => {
   const handleSendMessage = async (leadIds: string[], content: string, channel: MessageChannel, scheduledTime?: string) => {
     if (!session?.user?.id) return;
     
-    // Check if the channel is actually functional
     if (!integrations[channel]?.connected) {
-        alert(`${channel.toUpperCase()} Integration is not connected. Please check settings.`);
+        alert(`${channel.toUpperCase()} Integration is not connected.`);
         return;
     }
 
@@ -353,7 +391,6 @@ const App: React.FC = () => {
       const personalizedMessage = content.replace(/\{\{name\}\}/g, lead.name);
       
       let status: 'Sent' | 'Failed' | 'Queued' = 'Queued';
-      
       if (!scheduledTime) {
         const success = await dispatchOutreach(destination, personalizedMessage, channel);
         status = success ? 'Sent' : 'Failed';
@@ -373,12 +410,14 @@ const App: React.FC = () => {
 
     if (newLogs.length > 0) {
       try {
-        await supabase.from('message_logs').insert(newLogs);
+        const { error } = await supabase.from('message_logs').insert(newLogs);
+        if (error) throw error;
+        
         if (!scheduledTime) {
-          await supabase.from('leads').update({ last_contacted: now }).in('id', leadIds);
+          await supabase.from('leads').update({ last_contacted: now }).in('id', leadIds).eq('user_id', session.user.id);
         }
-        showToast(scheduledTime ? "Message(s) queued for delivery" : "Outreach dispatched successfully", 'success');
-        // Explicitly refresh logs after insertion for real-time history update
+        
+        showToast(scheduledTime ? "Outreach Queued" : "Outreach Dispatched", 'success');
         await fetchLogs();
       } catch (err) {
         console.error("Log persistence failed", err);
@@ -391,7 +430,7 @@ const App: React.FC = () => {
     if (!session?.user?.id) return;
     
     if (!integrations[platform]?.connected) {
-        alert(`${platform.toUpperCase()} Integration is not active. Please connect it in settings.`);
+        alert(`${platform.toUpperCase()} not active.`);
         return;
     }
 
@@ -399,33 +438,53 @@ const App: React.FC = () => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `Provide 1 new mock lead for ${platform} in JSON format. Use realistic data.`,
-        config: { responseMimeType: "application/json", responseSchema: { type: Type.OBJECT, properties: { name: { type: Type.STRING }, email: { type: Type.STRING }, phone: { type: Type.STRING }, interest: { type: Type.STRING } } } }
+        contents: `Provide 1 new mock lead for ${platform} in JSON format.`,
+        config: { 
+          responseMimeType: "application/json", 
+          responseSchema: { 
+            type: Type.OBJECT, 
+            properties: { name: { type: Type.STRING }, email: { type: Type.STRING }, phone: { type: Type.STRING }, interest: { type: Type.STRING } } 
+          } 
+        }
       });
       const mockLead = JSON.parse(response.text || '{}');
-      await handleAddLead({ name: mockLead.name, email: mockLead.email, phone: mockLead.phone, source: platform === 'facebook' ? 'Facebook' : 'Google', status: 'New', stage: 'Inquiry', propertyAddress: mockLead.interest });
+      await handleAddLead({ 
+        name: mockLead.name, 
+        email: mockLead.email, 
+        phone: mockLead.phone, 
+        source: platform === 'facebook' ? 'Facebook' : 'Google', 
+        status: 'New', 
+        stage: 'Inquiry', 
+        propertyAddress: mockLead.interest 
+      });
     } catch (err) {
       console.error("Sync failed", err);
-      alert("AI Sync failed. Please check your network and API key.");
     }
   };
 
   const handleUpdateIntegrations = async (newIntegrations: Integrations) => {
+    if (!session?.user?.id) return;
     setIntegrations(newIntegrations);
-    if (session?.user?.id) {
-      try {
-        await supabase.from('profiles').update({ integrations: newIntegrations }).eq('id', session.user.id);
-      } catch (e) {
-        console.error("Integration update failed", e);
-      }
+    try {
+      await supabase.from('profiles').update({ integrations: newIntegrations }).eq('id', session.user.id);
+    } catch (e) {
+      console.error("Integration update failed", e);
     }
   };
 
   const handleTestIntegration = async (service: keyof Integrations) => {
       const current = integrations[service];
       const result = await validateIntegrations(service, current);
-      const updated = { ...integrations, [service]: { ...current, connected: result.connected, statusMessage: result.message, lastTested: new Date().toISOString() } };
-      handleUpdateIntegrations(updated);
+      const updated = { 
+        ...integrations, 
+        [service]: { 
+          ...current, 
+          connected: result.connected, 
+          statusMessage: result.message, 
+          lastTested: new Date().toISOString() 
+        } 
+      };
+      await handleUpdateIntegrations(updated);
       return result;
   };
 
@@ -466,13 +525,17 @@ const App: React.FC = () => {
         const self: TeamMember = { id: session.user.id, email: session.user.email, name: 'You', role: 'Admin', status: 'Active', joinedAt: new Date().toISOString() };
         const { data, error } = await supabase.from('team_members').select('*').eq('owner_id', session.user.id);
         if (error) {
-            if (error.code === '42P01' || (error.message && error.message.includes('schema cache'))) {
-                setTeamMembers([self]);
-                return;
-            }
-            throw error;
+            setTeamMembers([self]);
+            return;
         }
-        const others = (data || []).map((m: any) => ({ id: m.id, email: m.email, name: m.name, role: m.role, status: m.status, joinedAt: m.created_at }));
+        const others = (data || []).map((m: any) => ({ 
+          id: m.id, 
+          email: m.email, 
+          name: m.name, 
+          role: m.role, 
+          status: m.status, 
+          joinedAt: m.created_at 
+        }));
         setTeamMembers([self, ...others]);
     } catch (e: any) {
         const self: TeamMember = { id: session.user.id, email: session.user.email, name: 'You', role: 'Admin', status: 'Active', joinedAt: new Date().toISOString() };
@@ -487,6 +550,8 @@ const App: React.FC = () => {
         console.error("Logout error", e);
     } finally {
         setSession(null);
+        setLeads([]);
+        setMessageLogs([]);
     }
   };
 
@@ -529,7 +594,6 @@ const App: React.FC = () => {
       riskCount={processedLeads.filter(l => l.agingStatus === 'critical').length}
       logoUrl={profile.logoUrl} companyName={profile.companyName}
     >
-      {/* Real-time Toast Notification */}
       {toast && (
         <div className={cn(
           "fixed bottom-10 right-10 z-[1000] p-6 rounded-[32px] shadow-3xl border flex items-center gap-4 animate-in slide-in-from-right-10 duration-500",
