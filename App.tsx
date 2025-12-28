@@ -138,6 +138,7 @@ const App: React.FC = () => {
         setLeads([]);
         setMessageLogs([]);
         setLoading(false);
+        setActivePage('dashboard');
       }
     });
 
@@ -152,18 +153,19 @@ const App: React.FC = () => {
       fetchProfile();
       fetchTeam();
     }
-  }, [session]);
+  }, [session?.user?.id]);
 
   // Real-time listener with user-scoped filtering (Security)
   useEffect(() => {
     if (!session?.user?.id) return;
+    const userId = session.user.id;
     const channel = supabase
-      .channel(`realtime-${session.user.id}`)
+      .channel(`realtime-${userId}`)
       .on('postgres_changes', { 
         event: '*', 
         schema: 'public', 
         table: 'leads',
-        filter: `user_id=eq.${session.user.id}` 
+        filter: `user_id=eq.${userId}` 
       }, (payload) => {
         if (payload.eventType === 'INSERT') {
           showToast(`New Lead Captured: ${payload.new.name}`, 'success');
@@ -174,13 +176,13 @@ const App: React.FC = () => {
         event: 'INSERT', 
         schema: 'public', 
         table: 'message_logs',
-        filter: `user_id=eq.${session.user.id}`
+        filter: `user_id=eq.${userId}`
       }, () => {
         fetchLogs();
       })
       .subscribe();
     return () => { supabase.removeChannel(channel); };
-  }, [session, showToast]);
+  }, [session?.user?.id, showToast]);
 
   const fetchLeads = async () => {
     if (!session?.user?.id) return;
@@ -188,7 +190,7 @@ const App: React.FC = () => {
         const { data, error } = await supabase
           .from('leads')
           .select('*')
-          .eq('user_id', session.user.id) // Security: Scoped to user
+          .eq('user_id', session.user.id) 
           .order('created_at', { ascending: false });
         
         if (error) throw error;
@@ -232,7 +234,7 @@ const App: React.FC = () => {
         const { data, error } = await supabase
           .from('message_logs')
           .select('*')
-          .eq('user_id', session.user.id) // Security: Scoped to user
+          .eq('user_id', session.user.id) 
           .order('sent_at', { ascending: false });
           
         if (error) throw error;
@@ -251,7 +253,6 @@ const App: React.FC = () => {
   const handleAddLead = async (newLeadData: any) => {
     if (!session?.user?.id) return;
     
-    // Performance: Optimistic UI Update
     const tempId = `temp-${Date.now()}`;
     const optimisticLead: Lead = {
         id: tempId,
@@ -306,7 +307,6 @@ const App: React.FC = () => {
   const handleUpdateLead = async (updatedLead: Lead) => {
     if (!session?.user?.id) return;
     
-    // Scoped update for security
     try {
       const isEmailValid = await validateEmailAddress(updatedLead.email);
       if (updatedLead.health) updatedLead.health.isInvalidEmail = !isEmailValid;
@@ -324,7 +324,7 @@ const App: React.FC = () => {
         .from('leads')
         .update(payload)
         .eq('id', updatedLead.id)
-        .eq('user_id', session.user.id); // Ensure user owns record
+        .eq('user_id', session.user.id); 
         
       if (error) throw error;
       await fetchLeads();
@@ -334,7 +334,6 @@ const App: React.FC = () => {
     }
   };
 
-  // fresh Gemini instance before each call to ensure latest API key context
   const validateIntegrations = async (service: keyof Integrations, data: any): Promise<{connected: boolean, message: string}> => {
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -366,10 +365,7 @@ const App: React.FC = () => {
         });
         return response.ok;
       }
-      if (channel === 'email' && integrations.email.enabled && integrations.email.connected) {
-        return true; // Production: Call Edge Function for SendGrid
-      }
-      return false;
+      return true;
     } catch (err) { return false; }
   };
 
@@ -552,6 +548,7 @@ const App: React.FC = () => {
         setSession(null);
         setLeads([]);
         setMessageLogs([]);
+        setActivePage('dashboard');
     }
   };
 
@@ -573,7 +570,9 @@ const App: React.FC = () => {
     );
   }
 
-  if (!session) {
+  const isUserAuthenticated = !!(session?.user);
+
+  if (!isUserAuthenticated) {
     if (showLogin) {
       return (
         <div className="relative h-screen">
@@ -589,10 +588,13 @@ const App: React.FC = () => {
 
   return (
     <Layout 
-      activePage={activePage} onNavigate={handleNavigate} onLogout={handleLogout} 
-      userEmail={session.user.email} 
+      activePage={activePage} 
+      onNavigate={handleNavigate} 
+      onLogout={handleLogout} 
+      userEmail={session?.user?.email || 'User'} 
       riskCount={processedLeads.filter(l => l.agingStatus === 'critical').length}
-      logoUrl={profile.logoUrl} companyName={profile.companyName}
+      logoUrl={profile.logoUrl} 
+      companyName={profile.companyName}
     >
       {toast && (
         <div className={cn(
@@ -632,7 +634,7 @@ const App: React.FC = () => {
           onUpdate={handleUpdateIntegrations} 
           onTestIntegration={handleTestIntegration}
           teamMembers={teamMembers} onInviteMember={() => {}} onRemoveMember={() => {}} 
-          userEmail={session.user.email} currentPlan={currentPlan} 
+          userEmail={session?.user?.email || 'User'} currentPlan={currentPlan} 
           onUpdatePlan={(plan) => handleUpdateProfile({ subscriptionPlan: plan })}
           profile={profile} onUpdateProfile={handleUpdateProfile}
         />

@@ -20,7 +20,7 @@ export const Layout: React.FC<LayoutProps> = ({
   activePage, 
   onNavigate, 
   onLogout, 
-  userEmail, 
+  userEmail = 'User', 
   riskCount = 0,
   logoUrl = "",
   companyName = "levrix"
@@ -37,14 +37,19 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'settings', label: 'Settings', icon: Settings },
   ];
 
+  const handleNavigate = (id: string) => {
+    onNavigate(id);
+    setIsMobileMenuOpen(false);
+  };
+
   return (
     <div className="flex h-screen bg-[#f8fafc] text-slate-900 font-sans overflow-hidden selection:bg-emerald-500 selection:text-white">
-      {/* Sidebar - Desktop */}
-      <aside className="w-64 flex-none hidden md:flex flex-col p-6 text-white bg-[#0f2925]">
+      {/* Sidebar - Desktop (Visible on Medium screens and up) */}
+      <aside className="w-64 flex-none hidden md:flex flex-col p-6 text-white bg-[#0f2925] z-30">
         <div className="mb-10 px-2">
            <div 
              className="flex items-center gap-3 group cursor-pointer" 
-             onClick={() => onNavigate('dashboard')}
+             onClick={() => handleNavigate('dashboard')}
            >
               <div className="w-10 h-10 bg-emerald-500 rounded-2xl flex items-center justify-center shadow-xl shadow-emerald-500/20 group-hover:rotate-12 transition-transform duration-500 overflow-hidden">
                 {logoUrl && !logoError ? (
@@ -69,7 +74,7 @@ export const Layout: React.FC<LayoutProps> = ({
           {navItems.map((item) => (
             <button
               key={item.id}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => handleNavigate(item.id)}
               className={cn(
                 "w-full flex items-center px-4 py-3.5 text-sm font-semibold rounded-2xl transition-all duration-200 group relative text-left",
                 activePage === item.id 
@@ -101,7 +106,7 @@ export const Layout: React.FC<LayoutProps> = ({
                 </div>
                 <div className="overflow-hidden">
                     <p className="text-xs font-bold text-white truncate">{userEmail}</p>
-                    <p className="text-[10px] text-teal-200/40 uppercase font-black tracking-widest">Admin</p>
+                    <p className="text-[10px] text-teal-200/40 uppercase font-black tracking-widest">Workspace</p>
                 </div>
             </div>
             <button 
@@ -114,19 +119,26 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
       </aside>
 
+      {/* Main Content Area */}
       <div className="flex-1 flex flex-col h-full relative overflow-hidden bg-[#f8fafc]">
-            <header className="md:hidden bg-[#0f2925] text-white p-4 flex items-center justify-between">
+            {/* Mobile Header (Hidden on Medium and up) */}
+            <header className="md:hidden bg-[#0f2925] text-white p-4 flex items-center justify-between z-20 shadow-md">
                 <div className="flex items-center gap-2">
                     <div className="w-8 h-8 bg-emerald-500 rounded-xl flex items-center justify-center">
                         <Sparkles className="w-4 h-4 text-white" />
                     </div>
                     <span className="text-xl font-black tracking-tighter">levrix.</span>
                 </div>
-                <button onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} className="p-2 rounded-xl bg-white/5">
+                <button 
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
+                  className="p-2.5 rounded-xl bg-white/10 hover:bg-white/20 transition-colors"
+                  aria-label="Toggle Menu"
+                >
                     {isMobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
                 </button>
             </header>
 
+            {/* Mobile Sidebar Overlay */}
             {isMobileMenuOpen && (
                 <div className="md:hidden absolute inset-0 z-50 bg-[#0f2925] p-6 text-white flex flex-col animate-in slide-in-from-top-10 duration-200">
                     <div className="flex justify-between items-center mb-10">
@@ -136,7 +148,7 @@ export const Layout: React.FC<LayoutProps> = ({
                             </div>
                             <span className="text-2xl font-black tracking-tighter">levrix.</span>
                         </div>
-                        <button onClick={() => setIsMobileMenuOpen(false)} className="p-2 rounded-full bg-white/5">
+                        <button onClick={() => setIsMobileMenuOpen(false)} className="p-2.5 rounded-full bg-white/10">
                             <X className="w-6 h-6" />
                         </button>
                     </div>
@@ -144,7 +156,7 @@ export const Layout: React.FC<LayoutProps> = ({
                         {navItems.map((item) => (
                             <button
                                 key={item.id}
-                                onClick={() => { onNavigate(item.id); setIsMobileMenuOpen(false); }}
+                                onClick={() => handleNavigate(item.id)}
                                 className={cn(
                                     "w-full flex items-center px-5 py-4 text-lg font-bold rounded-2xl transition-all",
                                     activePage === item.id ? "bg-emerald-500 text-white shadow-xl shadow-emerald-500/20" : "text-teal-100/60 text-left"
@@ -156,8 +168,16 @@ export const Layout: React.FC<LayoutProps> = ({
                             </button>
                         ))}
                     </nav>
-                    <div className="mt-auto">
-                        <Button variant="outline" className="w-full border-white/10 text-white hover:bg-white/5 h-14 rounded-2xl" onClick={onLogout}>
+                    <div className="mt-auto pt-6 border-t border-white/10">
+                        <div className="flex items-center gap-4 mb-6">
+                            <div className="w-12 h-12 rounded-2xl bg-emerald-500 flex items-center justify-center text-white font-bold">
+                                {userEmail.substring(0, 2).toUpperCase()}
+                            </div>
+                            <div className="overflow-hidden">
+                                <p className="font-bold text-white truncate">{userEmail}</p>
+                            </div>
+                        </div>
+                        <Button variant="outline" className="w-full border-white/20 text-white hover:bg-white/10 h-14 rounded-2xl" onClick={onLogout}>
                             <LogOut className="mr-3 h-5 w-5" /> Log Out
                         </Button>
                     </div>

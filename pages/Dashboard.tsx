@@ -63,10 +63,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
         contents: prompt 
       });
 
-      // Sanitize output: Remove any markdown symbols or leading numbers/dots that might slip through
       const cleanText = (response.text || '')
-        .replace(/[*#_~`>]/g, '') // Remove markdown symbols
-        .replace(/^[0-9]+[.)]\s+/gm, '') // Remove leading numbers like "1. " or "2)"
+        .replace(/[*#_~`>]/g, '') 
+        .replace(/^[0-9]+[.)]\s+/gm, '') 
         .trim();
 
       setAiInsight(cleanText);
@@ -77,14 +76,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ leads, logs = [], isReady 
 
   if (!isReady) {
     return (
-      <div className="h-full flex flex-col items-center justify-center p-10 text-center space-y-8 animate-in fade-in duration-500">
-         <div className="w-24 h-24 bg-rose-50 rounded-[40px] flex items-center justify-center border border-rose-100 shadow-2xl shadow-rose-500/10">
-            <Database className="w-10 h-10 text-rose-500" />
-         </div>
-         <div className="max-w-md space-y-2">
-            <h2 className="text-3xl font-black text-slate-900">Workspace Syncing</h2>
-            <p className="text-slate-500 font-medium">Re-establishing connection with your database...</p>
-         </div>
+      <div className="h-full flex flex-col space-y-8">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h2>
+              <p className="text-slate-500 mt-1">Establishing connection to your pipeline...</p>
+            </div>
+        </div>
+        <div className="flex-1 flex flex-col items-center justify-center p-10 text-center space-y-8 animate-in fade-in duration-500 bg-white rounded-[40px] border border-slate-100 shadow-sm">
+           <div className="w-24 h-24 bg-emerald-50 rounded-[40px] flex items-center justify-center border border-emerald-100 shadow-2xl shadow-emerald-500/10">
+              <Database className="w-10 h-10 text-emerald-500 animate-pulse" />
+           </div>
+           <div className="max-w-md space-y-2">
+              <h2 className="text-3xl font-black text-slate-900">Workspace Syncing</h2>
+              <p className="text-slate-500 font-medium leading-relaxed">Please wait while we re-establish a secure connection with your property database.</p>
+           </div>
+           <Button variant="outline" className="rounded-2xl" onClick={() => window.location.reload()}>
+              Force Refresh
+           </Button>
+        </div>
       </div>
     );
   }
