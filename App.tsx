@@ -113,36 +113,44 @@ const App: React.FC = () => {
 
   // Secure Authentication Initialization
   useEffect(() => {
+    let mounted = true;
+
     const initializeAuth = async () => {
       try {
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         if (error) throw error;
-        if (currentSession) setSession(currentSession);
+        if (mounted) {
+          setSession(currentSession);
+          // Only stop loading if we've checked the session
+          setLoading(false);
+        }
       } catch (err: any) {
         console.error("Auth initialization failed:", err.message);
-      } finally {
-        if (!window.location.hash.includes('access_token=')) setLoading(false);
+        if (mounted) setLoading(false);
       }
     };
 
     initializeAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      setSession(newSession);
-      if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-        setLoading(false);
-        if (window.location.hash.includes('access_token=')) window.history.replaceState(null, '', window.location.pathname);
-      }
-      if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setLeads([]);
-        setMessageLogs([]);
-        setLoading(false);
-        setActivePage('dashboard');
+      if (mounted) {
+        setSession(newSession);
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+          setLoading(false);
+        }
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setLeads([]);
+          setMessageLogs([]);
+          setActivePage('dashboard');
+        }
       }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
   // Data pre-fetching only when session is valid
@@ -557,6 +565,7 @@ const App: React.FC = () => {
     if (data) setNavData(data); 
   };
 
+  // If loading is true, we haven't determined auth state yet
   if (loading) {
     return (
       <div className="h-screen w-screen flex items-center justify-center bg-[#0f2925]">
