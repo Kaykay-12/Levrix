@@ -9,7 +9,9 @@ import {
   CheckCircle, Settings2, Code, ShieldCheck, 
   Mail, Image as ImageIcon, MessageCircle, Wifi, Database, 
   Key, Zap, Activity, ShieldAlert, ArrowRight, ExternalLink,
-  MessageSquare, Phone, Info, Send, CreditCard, Check, Sparkles, TrendingUp, Loader2, Upload, AlertCircle, X as XIcon, Lock, Globe2, Radio, Terminal, RefreshCw, ToggleLeft, ToggleRight, Users
+  MessageSquare, Phone, Info, Send, CreditCard, Check, Sparkles, TrendingUp, Loader2, Upload, AlertCircle, X as XIcon, Lock, Globe2, Radio, Terminal, RefreshCw, ToggleLeft, ToggleRight, Users,
+  // Fix: Added missing Clock import from lucide-react
+  Clock
 } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { supabase } from '../lib/supabaseClient';
@@ -69,8 +71,11 @@ export const Settings: React.FC<SettingsProps> = ({
 
     const handleTest = async (service: keyof Integrations) => {
         setTestingService(service);
-        await onTestIntegration(service);
-        setTestingService(null);
+        try {
+            await onTestIntegration(service);
+        } finally {
+            setTestingService(null);
+        }
     };
 
     const handleFileClick = () => fileInputRef.current?.click();
@@ -167,19 +172,31 @@ export const Settings: React.FC<SettingsProps> = ({
         }
     ];
 
-    const StatusBadge = ({ connected, message, lastTested }: { connected: boolean, message?: string, lastTested?: string }) => (
-        <div className="mt-2 space-y-1">
-            <div className={cn(
-                "flex items-center gap-2 text-[9px] font-black uppercase tracking-widest",
-                connected ? "text-emerald-500" : "text-rose-500"
-            )}>
-                <div className={cn("w-2 h-2 rounded-full", connected ? "bg-emerald-500" : "bg-rose-500 animate-pulse")} />
-                {connected ? "Active Connection" : "Connection Failure"}
+    const StatusBadge = ({ connected, message, lastTested }: { connected: boolean, message?: string, lastTested?: string }) => {
+        const hasNeverTested = !lastTested;
+        
+        return (
+            <div className="mt-2 space-y-1">
+                <div className={cn(
+                    "flex items-center gap-2 text-[9px] font-black uppercase tracking-widest",
+                    hasNeverTested ? "text-slate-400" : (connected ? "text-emerald-500" : "text-rose-500")
+                )}>
+                    <div className={cn(
+                        "w-2 h-2 rounded-full", 
+                        hasNeverTested ? "bg-slate-300" : (connected ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500 animate-pulse")
+                    )} />
+                    {hasNeverTested ? "Ready to Connect" : (connected ? "Active Connection" : "Connection Failure")}
+                </div>
+                {message && <p className="text-[10px] text-slate-500 leading-tight font-medium bg-slate-50 p-2 rounded-lg border border-slate-100">{message}</p>}
+                {lastTested && (
+                    <div className="flex items-center gap-1 text-[8px] text-slate-300 italic">
+                        <Clock className="w-2.5 h-2.5" />
+                        Last checked: {new Date(lastTested).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}
+                    </div>
+                )}
             </div>
-            {message && <p className="text-[10px] text-slate-400 leading-tight font-medium">{message}</p>}
-            {lastTested && <p className="text-[8px] text-slate-300 italic">Last checked: {new Date(lastTested).toLocaleTimeString()}</p>}
-        </div>
-    );
+        );
+    };
 
     return (
         <div className="space-y-6 pb-20">
@@ -285,7 +302,7 @@ export const Settings: React.FC<SettingsProps> = ({
                        </div>
                        <CardContent className="p-6 space-y-4 flex-1">
                             <Input label="From Email" value={integrations.email.fromEmail} onChange={e => updateIntegrations('email', { fromEmail: e.target.value })} placeholder="alerts@yourdomain.com" />
-                            <Input label="API Key" type="password" value={integrations.email.apiKey} onChange={e => updateIntegrations('email', { apiKey: e.target.value })} placeholder="SG.xxxx" />
+                            <Input label="API Key" type="password" value={integrations.email.apiKey} onChange={e => updateIntegrations('email', { apiKey: e.target.value })} placeholder="SG.xxxx (or type 'DEMO')" />
                             <StatusBadge connected={integrations.email.connected} message={integrations.email.statusMessage} lastTested={integrations.email.lastTested} />
                             <Button variant="outline" className="w-full text-xs h-10 rounded-xl" onClick={() => handleTest('email')} isLoading={testingService === 'email'}>Verify Connection</Button>
                        </CardContent>
