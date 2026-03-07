@@ -10,7 +10,6 @@ import {
   Mail, Image as ImageIcon, MessageCircle, Wifi, Database, 
   Key, Zap, Activity, ShieldAlert, ArrowRight, ExternalLink,
   MessageSquare, Phone, Info, Send, CreditCard, Check, Sparkles, TrendingUp, Loader2, Upload, AlertCircle, X as XIcon, Lock, Globe2, Radio, Terminal, RefreshCw, ToggleLeft, ToggleRight, Users,
-  // Fix: Added missing Clock import from lucide-react
   Clock
 } from 'lucide-react';
 import { cn } from '../lib/utils';
@@ -57,6 +56,7 @@ export const Settings: React.FC<SettingsProps> = ({
     const [copied, setCopied] = useState<string | null>(null);
     const [testingService, setTestingService] = useState<string | null>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState<string | null>(null);
+    const [isPingSending, setIsPingSending] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const updateIntegrations = (service: keyof Integrations, updates: any) => {
@@ -78,20 +78,57 @@ export const Settings: React.FC<SettingsProps> = ({
         }
     };
 
+    const handleSendDiagnosticPing = async () => {
+        if (!integrations.whatsapp.connected) {
+            alert("Please verify your connection first.");
+            return;
+        }
+        if (!integrations.sms.adminPhone) {
+            alert("Please set an 'Admin Phone Number' in the SMS settings to receive the test message.");
+            return;
+        }
+
+        setIsPingSending(true);
+        try {
+            const cleanPhone = integrations.sms.adminPhone.replace(/\D/g, '');
+            const response = await fetch(`https://graph.facebook.com/v21.0/${integrations.whatsapp.phoneNumberId}/messages`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${integrations.whatsapp.accessToken}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    messaging_product: "whatsapp",
+                    to: cleanPhone,
+                    type: "text",
+                    text: { body: `Levrix Diagnostic: WhatsApp integration test successful at ${new Date().toLocaleTimeString()}.` }
+                })
+            });
+
+            if (response.ok) {
+                alert("Diagnostic Ping Dispatched! Check your phone for a message from Meta.");
+            } else {
+                const err = await response.json();
+                alert(`Ping Failed: ${err.error?.message || "Check Meta Console."}`);
+            }
+        } catch (e) {
+            alert("Network error sending ping.");
+        } finally {
+            setIsPingSending(false);
+        }
+    };
+
     const handleFileClick = () => fileInputRef.current?.click();
 
     const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
-
         if (file.size > 1024 * 1024) {
             setUploadError("Logo too large (Max 1MB). Please use a smaller image.");
             return;
         }
-
         setIsUploading(true);
         setUploadError(null);
-
         try {
             const reader = new FileReader();
             reader.onloadend = async () => {
@@ -108,11 +145,10 @@ export const Settings: React.FC<SettingsProps> = ({
 
     const handleSubscribe = (planName: string, price: number) => {
         setIsProcessingPayment(planName);
-
         const handler = window.PaystackPop.setup({
             key: PAYSTACK_PUBLIC_KEY,
             email: userEmail,
-            amount: price * 100, // Amount in subunits (GHS pesewas)
+            amount: price * 100, 
             currency: 'GHS',
             callback: (response: any) => {
                 onUpdatePlan(planName);
@@ -123,77 +159,30 @@ export const Settings: React.FC<SettingsProps> = ({
                 setIsProcessingPayment(null);
             }
         });
-
         handler.openIframe();
     };
 
     const getBaseUrl = () => {
         try { return new URL(supabase.supabaseUrl).hostname; } catch { return 'project.supabase.co'; }
     };
-    
     const webhookUrl = `https://${getBaseUrl()}/functions/v1/lead-inbound`;
 
     const PLANS = [
-        { 
-            name: 'Starter', 
-            price: 199, 
-            features: [
-                'Lead Pipeline Tracking',
-                'Email & SMS Outreach',
-                'AI Strategic Assistant',
-                'Performance Analytics',
-                'Smart Buyer Profiles'
-            ], 
-            color: 'slate' 
-        },
-        { 
-            name: 'Growth', 
-            price: 399, 
-            features: [
-                'WhatsApp Business Integration',
-                'AI Voice Intel Logs',
-                'Automated Priority Scoring',
-                'Marketing Hub Access',
-                'Advanced Campaign Tracking'
-            ], 
-            color: 'emerald' 
-        },
-        { 
-            name: 'Pro', 
-            price: 799, 
-            features: [
-                'AI Property Render Studio',
-                'AI Flyer PDF Generation',
-                'Custom White-label Branding',
-                'Webhook Router API Access',
-                'Priority Success Manager'
-            ], 
-            color: 'indigo' 
-        }
+        { name: 'Starter', price: 199, features: ['Lead Pipeline Tracking', 'Email & SMS Outreach', 'AI Strategic Assistant', 'Performance Analytics', 'Smart Buyer Profiles'], color: 'slate' },
+        { name: 'Growth', price: 399, features: ['WhatsApp Business Integration', 'AI Voice Intel Logs', 'Automated Priority Scoring', 'Marketing Hub Access', 'Advanced Campaign Tracking'], color: 'emerald' },
+        { name: 'Pro', price: 799, features: ['AI Property Render Studio', 'AI Flyer PDF Generation', 'Custom White-label Branding', 'Webhook Router API Access', 'Priority Success Manager'], color: 'indigo' }
     ];
 
     const StatusBadge = ({ connected, message, lastTested }: { connected: boolean, message?: string, lastTested?: string }) => {
         const hasNeverTested = !lastTested;
-        
         return (
             <div className="mt-2 space-y-1">
-                <div className={cn(
-                    "flex items-center gap-2 text-[9px] font-black uppercase tracking-widest",
-                    hasNeverTested ? "text-slate-400" : (connected ? "text-emerald-500" : "text-rose-500")
-                )}>
-                    <div className={cn(
-                        "w-2 h-2 rounded-full", 
-                        hasNeverTested ? "bg-slate-300" : (connected ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500 animate-pulse")
-                    )} />
+                <div className={cn("flex items-center gap-2 text-[9px] font-black uppercase tracking-widest", hasNeverTested ? "text-slate-400" : (connected ? "text-emerald-500" : "text-rose-500"))}>
+                    <div className={cn("w-2 h-2 rounded-full", hasNeverTested ? "bg-slate-300" : (connected ? "bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]" : "bg-rose-500 animate-pulse"))} />
                     {hasNeverTested ? "Ready to Connect" : (connected ? "Active Connection" : "Connection Failure")}
                 </div>
                 {message && <p className="text-[10px] text-slate-500 leading-tight font-medium bg-slate-50 p-2 rounded-lg border border-slate-100">{message}</p>}
-                {lastTested && (
-                    <div className="flex items-center gap-1 text-[8px] text-slate-300 italic">
-                        <Clock className="w-2.5 h-2.5" />
-                        Last checked: {new Date(lastTested).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
-                )}
+                {lastTested && <div className="flex items-center gap-1 text-[8px] text-slate-300 italic"><Clock className="w-2.5 h-2.5" />Last checked: {new Date(lastTested).toLocaleString([], { hour: '2-digit', minute: '2-digit' })}</div>}
             </div>
         );
     };
@@ -207,16 +196,7 @@ export const Settings: React.FC<SettingsProps> = ({
                 </div>
                 <div className="flex bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shadow-sm">
                     {['profile', 'integrations', 'webhooks', 'billing'].map((tab) => (
-                        <button 
-                            key={tab}
-                            onClick={() => setActiveTab(tab as any)}
-                            className={cn(
-                                "flex items-center gap-2 px-6 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all",
-                                activeTab === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600"
-                            )}
-                        >
-                            {tab}
-                        </button>
+                        <button key={tab} onClick={() => setActiveTab(tab as any)} className={cn("flex items-center gap-2 px-6 py-2.5 text-xs font-black uppercase tracking-widest rounded-xl transition-all", activeTab === tab ? "bg-white text-slate-900 shadow-sm" : "text-slate-400 hover:text-slate-600")}>{tab}</button>
                     ))}
                 </div>
             </div>
@@ -228,42 +208,13 @@ export const Settings: React.FC<SettingsProps> = ({
                         <CardContent className="space-y-8">
                             <div className="flex flex-col md:flex-row items-center gap-10">
                                 <div className="relative group flex flex-col items-center">
-                                    <div 
-                                        onClick={handleFileClick} 
-                                        className={cn(
-                                            "w-40 h-40 rounded-[48px] bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden shadow-inner cursor-pointer transition-all hover:border-emerald-500 hover:bg-emerald-50/30", 
-                                            isUploading && "opacity-50 cursor-wait",
-                                            uploadError && "border-rose-400 bg-rose-50/50"
-                                        )}
-                                    >
-                                        {profile.logoUrl && profile.logoUrl !== './logo.png' ? (
-                                            <img src={profile.logoUrl} alt="Logo" className="w-full h-full object-contain p-4 animate-in fade-in duration-500" />
-                                        ) : (
-                                            <div className="text-center space-y-2">
-                                                <ImageIcon className="w-10 h-10 text-slate-300 mx-auto" />
-                                                <p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Logo</p>
-                                            </div>
-                                        )}
-                                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-[48px]">
-                                            <div className="text-white text-center">
-                                                <Upload className="w-6 h-6 mx-auto mb-1" />
-                                                <p className="text-[10px] font-black uppercase tracking-widest">Instant Upload</p>
-                                            </div>
-                                        </div>
-                                        {isUploading && (
-                                            <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[2px]">
-                                                <Loader2 className="w-8 h-8 text-emerald-500 animate-spin" />
-                                            </div>
-                                        )}
+                                    <div onClick={handleFileClick} className={cn("w-40 h-40 rounded-[48px] bg-slate-50 border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden shadow-inner cursor-pointer transition-all hover:border-emerald-500 hover:bg-emerald-50/30", isUploading && "opacity-50 cursor-wait", uploadError && "border-rose-400 bg-rose-50/50")}>
+                                        {profile.logoUrl && profile.logoUrl !== './logo.png' ? <img src={profile.logoUrl} alt="Logo" className="w-full h-full object-contain p-4 animate-in fade-in duration-500" /> : <div className="text-center space-y-2"><ImageIcon className="w-10 h-10 text-slate-300 mx-auto" /><p className="text-[10px] font-black uppercase text-slate-400 tracking-widest">Logo</p></div>}
+                                        <div className="absolute inset-0 bg-slate-900/60 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-[48px]"><div className="text-white text-center"><Upload className="w-6 h-6 mx-auto mb-1" /><p className="text-[10px] font-black uppercase tracking-widest">Instant Upload</p></div></div>
+                                        {isUploading && <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[2px]"><Loader2 className="w-8 h-8 text-emerald-500 animate-spin" /></div>}
                                     </div>
                                     <input type="file" ref={fileInputRef} className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleFileChange} />
-                                    {uploadError && (
-                                        <div className="mt-4 max-w-[200px] text-center">
-                                            <p className="text-[10px] text-rose-500 font-bold leading-tight flex items-center gap-1 justify-center">
-                                                <AlertCircle className="w-3 h-3 shrink-0" /> {uploadError}
-                                            </p>
-                                        </div>
-                                    )}
+                                    {uploadError && <div className="mt-4 max-w-[200px] text-center"><p className="text-[10px] text-rose-500 font-bold leading-tight flex items-center gap-1 justify-center"><AlertCircle className="w-3 h-3 shrink-0" /> {uploadError}</p></div>}
                                 </div>
                                 <div className="flex-1 w-full space-y-6">
                                     <div className="grid md:grid-cols-2 gap-6">
@@ -271,12 +222,8 @@ export const Settings: React.FC<SettingsProps> = ({
                                         <Input label="Primary Agent Name" value={profile.fullName || ''} onChange={(e) => onUpdateProfile({ fullName: e.target.value })} placeholder="e.g. Jane Doe" />
                                     </div>
                                     <div className="flex justify-between items-center pt-2">
-                                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-bold border border-emerald-100">
-                                            <Sparkles className="w-3.5 h-3.5" /> Direct Cloud Sync
-                                        </div>
-                                        <Button variant="outline" className="rounded-xl h-10 text-xs" onClick={() => onUpdateProfile({ logoUrl: './logo.png' })} disabled={profile.logoUrl === './logo.png'}>
-                                            Reset to Default
-                                        </Button>
+                                        <div className="flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-600 rounded-xl text-[10px] font-bold border border-emerald-100"><Sparkles className="w-3.5 h-3.5" /> Direct Cloud Sync</div>
+                                        <Button variant="outline" className="rounded-xl h-10 text-xs" onClick={() => onUpdateProfile({ logoUrl: './logo.png' })} disabled={profile.logoUrl === './logo.png'}>Reset to Default</Button>
                                     </div>
                                 </div>
                             </div>
@@ -288,65 +235,36 @@ export const Settings: React.FC<SettingsProps> = ({
             {activeTab === 'integrations' && (
                 <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 animate-in fade-in slide-in-from-bottom-2 pb-12">
                     <Card className="rounded-[40px] border-slate-100 shadow-xl overflow-hidden flex flex-col">
-                       <div className="p-6 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                             <div className="p-2.5 bg-emerald-500 rounded-xl text-white shadow-lg"><Mail className="w-5 h-5" /></div>
-                             <div>
-                                <h3 className="font-bold text-slate-900 text-sm">Email Outreach</h3>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/60">SMTP / SendGrid</p>
-                             </div>
-                          </div>
-                          <button onClick={() => updateIntegrations('email', { enabled: !integrations.email.enabled })}>
-                            {integrations.email.enabled ? <ToggleRight className="w-8 h-8 text-emerald-500" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}
-                          </button>
-                       </div>
-                       <CardContent className="p-6 space-y-4 flex-1">
-                            <Input label="From Email" value={integrations.email.fromEmail} onChange={e => updateIntegrations('email', { fromEmail: e.target.value })} placeholder="alerts@yourdomain.com" />
-                            <Input label="API Key" type="password" value={integrations.email.apiKey} onChange={e => updateIntegrations('email', { apiKey: e.target.value })} placeholder="SG.xxxx (or type 'DEMO')" />
-                            <StatusBadge connected={integrations.email.connected} message={integrations.email.statusMessage} lastTested={integrations.email.lastTested} />
-                            <Button variant="outline" className="w-full text-xs h-10 rounded-xl" onClick={() => handleTest('email')} isLoading={testingService === 'email'}>Verify Connection</Button>
-                       </CardContent>
-                    </Card>
-
-                    <Card className="rounded-[40px] border-slate-100 shadow-xl overflow-hidden flex flex-col">
-                       <div className="p-6 bg-blue-50/50 border-b border-blue-100 flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                             <div className="p-2.5 bg-blue-600 rounded-xl text-white shadow-lg"><Facebook className="w-5 h-5" /></div>
-                             <div>
-                                <h3 className="font-bold text-slate-900 text-sm">Meta Lead Ads</h3>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-blue-600/60">FB Sync</p>
-                             </div>
-                          </div>
-                          <button onClick={() => updateIntegrations('facebook', { enabled: !integrations.facebook.enabled })}>
-                            {integrations.facebook.enabled ? <ToggleRight className="w-8 h-8 text-blue-600" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}
-                          </button>
-                       </div>
-                       <CardContent className="p-6 space-y-4 flex-1">
-                            <Input label="Page ID" value={integrations.facebook.pageId} onChange={e => updateIntegrations('facebook', { pageId: e.target.value })} />
-                            <Input label="Access Token" type="password" value={integrations.facebook.accessToken} onChange={e => updateIntegrations('facebook', { accessToken: e.target.value })} />
-                            <StatusBadge connected={integrations.facebook.connected} message={integrations.facebook.statusMessage} lastTested={integrations.facebook.lastTested} />
-                            <Button variant="outline" className="w-full text-xs h-10 rounded-xl" onClick={() => handleTest('facebook')} isLoading={testingService === 'facebook'}>Fetch Pages</Button>
-                       </CardContent>
-                    </Card>
-
-                    <Card className="rounded-[40px] border-slate-100 shadow-xl overflow-hidden flex flex-col">
                        <div className="p-6 bg-teal-50/50 border-b border-teal-100 flex items-center justify-between">
                           <div className="flex items-center gap-3">
                              <div className="p-2.5 bg-teal-500 rounded-xl text-white shadow-lg"><MessageCircle className="w-5 h-5" /></div>
                              <div>
                                 <h3 className="font-bold text-slate-900 text-sm">WhatsApp Cloud</h3>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-teal-600/60">Business API</p>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-teal-600/60">LIVE META HANDSHAKE</p>
                              </div>
                           </div>
-                          <button onClick={() => updateIntegrations('whatsapp', { enabled: !integrations.whatsapp.enabled })}>
-                            {integrations.whatsapp.enabled ? <ToggleRight className="w-8 h-8 text-teal-500" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}
-                          </button>
+                          <button onClick={() => updateIntegrations('whatsapp', { enabled: !integrations.whatsapp.enabled })}>{integrations.whatsapp.enabled ? <ToggleRight className="w-8 h-8 text-teal-500" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}</button>
                        </div>
                        <CardContent className="p-6 space-y-4 flex-1">
                             <Input label="Business Account ID" value={integrations.whatsapp.businessId} onChange={e => updateIntegrations('whatsapp', { businessId: e.target.value })} />
                             <Input label="Phone Number ID" value={integrations.whatsapp.phoneNumberId} onChange={e => updateIntegrations('whatsapp', { phoneNumberId: e.target.value })} />
+                            <div className="space-y-1">
+                                <div className="flex justify-between items-center">
+                                    <label className="block text-sm font-medium text-slate-700 ml-1">Access Token</label>
+                                    <a href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" className="text-[10px] font-black uppercase tracking-widest text-teal-600 hover:text-teal-800 flex items-center gap-1">
+                                        Get Token <ExternalLink className="w-2.5 h-2.5" />
+                                    </a>
+                                </div>
+                                <Input type="password" value={integrations.whatsapp.accessToken} onChange={e => updateIntegrations('whatsapp', { accessToken: e.target.value })} placeholder="EAAB..." />
+                                <p className="text-[9px] text-slate-400 font-bold px-1 flex items-center gap-1">
+                                    <Info className="w-2.5 h-2.5" /> Use a "Permanent Token" to avoid 24-hour expiry.
+                                </p>
+                            </div>
                             <StatusBadge connected={integrations.whatsapp.connected} message={integrations.whatsapp.statusMessage} lastTested={integrations.whatsapp.lastTested} />
-                            <Button variant="outline" className="w-full text-xs h-10 rounded-xl" onClick={() => handleTest('whatsapp')} isLoading={testingService === 'whatsapp'}>Verify Webhook</Button>
+                            <div className="grid grid-cols-2 gap-2 pt-2">
+                                <Button variant="outline" className="text-[10px] uppercase h-10 rounded-xl font-black" onClick={() => handleTest('whatsapp')} isLoading={testingService === 'whatsapp'}>Ping Server</Button>
+                                <Button className="text-[10px] uppercase h-10 rounded-xl bg-slate-900 font-black" onClick={handleSendDiagnosticPing} isLoading={isPingSending} disabled={!integrations.whatsapp.connected}>Test Route</Button>
+                            </div>
                        </CardContent>
                     </Card>
 
@@ -359,36 +277,33 @@ export const Settings: React.FC<SettingsProps> = ({
                                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Outbound Alerts</p>
                              </div>
                           </div>
-                          <button onClick={() => updateIntegrations('sms', { enabled: !integrations.sms.enabled })}>
-                            {integrations.sms.enabled ? <ToggleRight className="w-8 h-8 text-slate-900" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}
-                          </button>
+                          <button onClick={() => updateIntegrations('sms', { enabled: !integrations.sms.enabled })}>{integrations.sms.enabled ? <ToggleRight className="w-8 h-8 text-slate-900" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}</button>
                        </div>
                        <CardContent className="p-6 space-y-4 flex-1">
                             <Input label="Account SID" value={integrations.sms.accountSid} onChange={e => updateIntegrations('sms', { accountSid: e.target.value })} />
                             <Input label="Auth Token" type="password" value={integrations.sms.authToken} onChange={e => updateIntegrations('sms', { authToken: e.target.value })} />
+                            <Input label="Admin Phone (Tests)" value={integrations.sms.adminPhone} onChange={e => updateIntegrations('sms', { adminPhone: e.target.value })} placeholder="+233..." />
                             <StatusBadge connected={integrations.sms.connected} message={integrations.sms.statusMessage} lastTested={integrations.sms.lastTested} />
-                            <Button variant="outline" className="w-full text-xs h-10 rounded-xl" onClick={() => handleTest('sms')} isLoading={testingService === 'sms'}>Validate Credentials</Button>
+                            <Button variant="outline" className="w-full text-xs h-10 rounded-xl" onClick={() => handleTest('sms')} isLoading={testingService === 'sms'}>Validate API</Button>
                        </CardContent>
                     </Card>
 
                     <Card className="rounded-[40px] border-slate-100 shadow-xl overflow-hidden flex flex-col">
-                       <div className="p-6 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+                       <div className="p-6 bg-emerald-50/50 border-b border-emerald-100 flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                             <div className="p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm"><Globe2 className="w-5 h-5 text-slate-400" /></div>
+                             <div className="p-2.5 bg-emerald-500 rounded-xl text-white shadow-lg"><Mail className="w-5 h-5" /></div>
                              <div>
-                                <h3 className="font-bold text-slate-900 text-sm">Google Ads API</h3>
-                                <p className="text-[9px] font-black uppercase tracking-widest text-slate-400">Search Sync</p>
+                                <h3 className="font-bold text-slate-900 text-sm">Email Outreach</h3>
+                                <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/60">SMTP / SendGrid</p>
                              </div>
                           </div>
-                          <button onClick={() => updateIntegrations('google', { enabled: !integrations.google.enabled })}>
-                            {integrations.google.enabled ? <ToggleRight className="w-8 h-8 text-slate-900" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}
-                          </button>
+                          <button onClick={() => updateIntegrations('email', { enabled: !integrations.email.enabled })}>{integrations.email.enabled ? <ToggleRight className="w-8 h-8 text-emerald-500" /> : <ToggleLeft className="w-8 h-8 text-slate-300" />}</button>
                        </div>
                        <CardContent className="p-6 space-y-4 flex-1">
-                            <Input label="Customer ID" value={integrations.google.customerId} onChange={e => updateIntegrations('google', { customerId: e.target.value })} />
-                            <Input label="Developer Token" type="password" value={integrations.google.developerToken} onChange={e => updateIntegrations('google', { developerToken: e.target.value })} />
-                            <StatusBadge connected={integrations.google.connected} message={integrations.google.statusMessage} lastTested={integrations.google.lastTested} />
-                            <Button variant="outline" className="w-full text-xs h-10 rounded-xl" onClick={() => handleTest('google')} isLoading={testingService === 'google'}>OAuth Connection</Button>
+                            <Input label="From Email" value={integrations.email.fromEmail} onChange={e => updateIntegrations('email', { fromEmail: e.target.value })} placeholder="alerts@domain.com" />
+                            <Input label="API Key" type="password" value={integrations.email.apiKey} onChange={e => updateIntegrations('email', { apiKey: e.target.value })} />
+                            <StatusBadge connected={integrations.email.connected} message={integrations.email.statusMessage} lastTested={integrations.email.lastTested} />
+                            <Button variant="outline" className="w-full text-xs h-10 rounded-xl" onClick={() => handleTest('email')} isLoading={testingService === 'email'}>Verify Connection</Button>
                        </CardContent>
                     </Card>
                 </div>
@@ -397,24 +312,8 @@ export const Settings: React.FC<SettingsProps> = ({
             {activeTab === 'webhooks' && (
                 <div className="grid gap-6 animate-in fade-in slide-in-from-bottom-2">
                     <Card className="bg-[#0f2925] text-white border-none shadow-2xl overflow-hidden rounded-[40px] p-12 space-y-10">
-                        <div className="flex flex-col md:flex-row items-center justify-between gap-8">
-                           <div className="flex items-center gap-6">
-                              <div className="p-4 bg-emerald-500/20 rounded-[28px] border border-emerald-500/20 shadow-xl"><Code className="w-8 h-8 text-emerald-400" /></div>
-                              <div>
-                                 <h3 className="text-3xl font-black">Webhook Router</h3>
-                                 <p className="text-teal-200/40 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Real-Time Connectivity</p>
-                              </div>
-                           </div>
-                        </div>
-                        <div className="space-y-3">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-teal-200/40 ml-1">Universal Endpoint</label>
-                            <div className="p-6 bg-black/40 rounded-[32px] border border-white/10 flex items-center justify-between group">
-                                <code className="text-emerald-400 text-xs md:text-sm truncate font-mono">{webhookUrl}</code>
-                                <button onClick={() => handleCopy(webhookUrl, 'webhook')} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl text-white/40 hover:text-white transition-all">
-                                    {copied === 'webhook' ? <CheckCircle className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}
-                                </button>
-                            </div>
-                        </div>
+                        <div className="flex flex-col md:flex-row items-center justify-between gap-8"><div className="flex items-center gap-6"><div className="p-4 bg-emerald-500/20 rounded-[28px] border border-emerald-500/20 shadow-xl"><Code className="w-8 h-8 text-emerald-400" /></div><div><h3 className="text-3xl font-black">Webhook Router</h3><p className="text-teal-200/40 text-[10px] font-black uppercase tracking-[0.3em] mt-1">Real-Time Connectivity</p></div></div></div>
+                        <div className="space-y-3"><label className="text-[10px] font-black uppercase tracking-widest text-teal-200/40 ml-1">Universal Endpoint</label><div className="p-6 bg-black/40 rounded-[32px] border border-white/10 flex items-center justify-between group"><code className="text-emerald-400 text-xs md:text-sm truncate font-mono">{webhookUrl}</code><button onClick={() => handleCopy(webhookUrl, 'webhook')} className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl text-white/40 hover:text-white transition-all">{copied === 'webhook' ? <CheckCircle className="w-5 h-5 text-emerald-400" /> : <Copy className="w-5 h-5" />}</button></div></div>
                     </Card>
                 </div>
             )}
@@ -422,59 +321,15 @@ export const Settings: React.FC<SettingsProps> = ({
             {activeTab === 'billing' && (
                 <div className="grid gap-8 animate-in fade-in slide-in-from-bottom-2">
                     <Card className="bg-white border-slate-100 overflow-hidden rounded-[40px] shadow-2xl">
-                        <div className="p-12 flex flex-col md:flex-row items-center justify-between gap-8 bg-slate-50/50">
-                            <div className="flex items-center gap-6">
-                                <div className="w-20 h-20 rounded-3xl bg-slate-900 flex items-center justify-center text-white shadow-xl"><CreditCard className="w-10 h-10" /></div>
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Active Membership</p>
-                                    <h3 className="text-3xl font-black text-slate-900">{currentPlan}</h3>
-                                </div>
-                            </div>
-                            <div className="flex flex-col items-end gap-2">
-                                <div className="px-6 py-2 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100 flex items-center gap-2">
-                                    <Users className="w-3.5 h-3.5" /> Per User Billing
-                                </div>
-                                <p className="text-[10px] text-slate-400 font-bold">Billing for {teamMembers.length} active seat(s)</p>
-                            </div>
-                        </div>
+                        <div className="p-12 flex flex-col md:flex-row items-center justify-between gap-8 bg-slate-50/50"><div className="flex items-center gap-6"><div className="w-20 h-20 rounded-3xl bg-slate-900 flex items-center justify-center text-white shadow-xl"><CreditCard className="w-10 h-10" /></div><div><p className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-400 mb-1">Active Membership</p><h3 className="text-3xl font-black text-slate-900">{currentPlan}</h3></div></div><div className="flex flex-col items-end gap-2"><div className="px-6 py-2 bg-emerald-50 text-emerald-600 rounded-full text-[10px] font-black uppercase tracking-widest border border-emerald-100 flex items-center gap-2"><Users className="w-3.5 h-3.5" /> Per User Billing</div><p className="text-[10px] text-slate-400 font-bold">Billing for {teamMembers.length} active seat(s)</p></div></div>
                         <div className="p-12 grid md:grid-cols-3 gap-8 pt-8">
                             {PLANS.map((plan) => (
-                                <div key={plan.name} className={cn(
-                                    "p-10 rounded-[40px] border-2 transition-all flex flex-col relative group", 
-                                    currentPlan === plan.name ? "border-emerald-500 bg-emerald-50/20" : "border-slate-50 hover:border-slate-200"
-                                )}>
-                                    {currentPlan === plan.name && (
-                                        <div className="absolute top-6 right-6">
-                                            <CheckCircle className="w-6 h-6 text-emerald-500" />
-                                        </div>
-                                    )}
+                                <div key={plan.name} className={cn("p-10 rounded-[40px] border-2 transition-all flex flex-col relative group", currentPlan === plan.name ? "border-emerald-500 bg-emerald-50/20" : "border-slate-50 hover:border-slate-200")}>
+                                    {currentPlan === plan.name && <div className="absolute top-6 right-6"><CheckCircle className="w-6 h-6 text-emerald-500" /></div>}
                                     <h4 className="text-xl font-bold text-slate-900">{plan.name}</h4>
-                                    <div className="flex items-baseline mt-4">
-                                        <span className="text-4xl font-black text-slate-900">₵{plan.price}</span>
-                                        <div className="ml-2">
-                                            <p className="text-[9px] font-black uppercase text-slate-400">per user</p>
-                                            <p className="text-[9px] font-black uppercase text-slate-400">/ month</p>
-                                        </div>
-                                    </div>
-                                    <div className="mt-8 space-y-3 flex-1">
-                                        {plan.features.map((feat, idx) => (
-                                            <div key={idx} className="flex items-center gap-2">
-                                                <div className="w-1.5 h-1.5 rounded-full bg-slate-900" />
-                                                <span className="text-xs text-slate-500 font-medium">{feat}</span>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <Button 
-                                        className={cn(
-                                            "w-full h-14 rounded-2xl font-black uppercase tracking-widest mt-10 transition-all", 
-                                            currentPlan === plan.name ? "bg-emerald-500 text-white shadow-xl shadow-emerald-500/20" : "bg-slate-900 text-white shadow-xl shadow-slate-900/10"
-                                        )} 
-                                        onClick={() => handleSubscribe(plan.name, plan.price)}
-                                        disabled={currentPlan === plan.name}
-                                        isLoading={isProcessingPayment === plan.name}
-                                    >
-                                        {currentPlan === plan.name ? 'Active Plan' : `Checkout ₵${plan.price}`}
-                                    </Button>
+                                    <div className="flex items-baseline mt-4"><span className="text-4xl font-black text-slate-900">₵{plan.price}</span><div className="ml-2"><p className="text-[9px] font-black uppercase text-slate-400">per user</p><p className="text-[9px] font-black uppercase text-slate-400">/ month</p></div></div>
+                                    <div className="mt-8 space-y-3 flex-1">{plan.features.map((feat, idx) => (<div key={idx} className="flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-slate-900" /><span className="text-xs text-slate-500 font-medium">{feat}</span></div>))}</div>
+                                    <Button className={cn("w-full h-14 rounded-2xl font-black uppercase tracking-widest mt-10 transition-all", currentPlan === plan.name ? "bg-emerald-500 text-white shadow-xl shadow-emerald-500/20" : "bg-slate-900 text-white shadow-xl shadow-slate-900/10")} onClick={() => handleSubscribe(plan.name, plan.price)} disabled={currentPlan === plan.name} isLoading={isProcessingPayment === plan.name}>{currentPlan === plan.name ? 'Active Plan' : `Checkout ₵${plan.price}`}</Button>
                                 </div>
                             ))}
                         </div>

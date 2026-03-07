@@ -73,7 +73,11 @@ export const Login: React.FC = () => {
         if (signInError) throw signInError;
       }
     } catch (err: any) {
-      setError(err.message || "Authentication failed.");
+      let errorMessage = err.message || "Authentication failed.";
+      if (errorMessage.includes("Failed to fetch")) {
+        errorMessage = "Network Error: Could not connect to the authentication server. Please check your internet connection and Supabase configuration.";
+      }
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }

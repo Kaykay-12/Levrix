@@ -177,7 +177,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({ onLogin, onSignUp, log
                  src="https://images.unsplash.com/photo-1573497019940-1c28c88b4f3e?auto=format&fit=crop&q=80&w=1200" 
                  alt="African Business Professional in Modern Building" 
                  className="w-full h-full object-cover"
-                 fetchpriority="high"
+                 fetchPriority="high"
                />
             </div>
 

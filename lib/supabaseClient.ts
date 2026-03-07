@@ -6,6 +6,12 @@ import { createClient } from '@supabase/supabase-js';
  * and runtime contexts (Node-like vs Browser-like).
  */
 const getEnv = (key: string, viteKey: string, reactKey: string): string => {
+  // Try Vite's import.meta.env first
+  if (typeof import.meta !== 'undefined' && import.meta.env) {
+    if (import.meta.env[viteKey]) return import.meta.env[viteKey];
+    if (import.meta.env[key]) return import.meta.env[key];
+  }
+
   if (typeof window !== 'undefined' && (window as any).process?.env) {
     const env = (window as any).process.env;
     if (env[key]) return env[key];
@@ -15,7 +21,10 @@ const getEnv = (key: string, viteKey: string, reactKey: string): string => {
   
   // Try direct process.env (Vite/Bundler injection)
   try {
-    if (process.env[key]) return process.env[key];
+    if (typeof process !== 'undefined' && process.env) {
+      if (process.env[key]) return process.env[key];
+      if (process.env[viteKey]) return process.env[viteKey];
+    }
   } catch (e) {}
 
   return '';

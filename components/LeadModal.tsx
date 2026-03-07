@@ -93,30 +93,36 @@ export const LeadModal: React.FC<LeadModalProps> = ({ isOpen, onClose, onSave })
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700 ml-1 flex items-center gap-2"><Phone className="w-3 h-3" /> Phone Number</label>
+                <Input placeholder="e.g. +233 24 000 0000" value={formData.phone} onChange={(e) => setFormData({...formData, phone: e.target.value})} required disabled={isSaving} />
+            </div>
+            <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-700 ml-1 flex items-center gap-2"><Home className="w-3 h-3" /> Property Interest</label>
                 <Input placeholder="e.g. 123 Ocean Blvd" value={formData.propertyAddress} onChange={(e) => setFormData({...formData, propertyAddress: e.target.value})} disabled={isSaving} />
             </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
                 <label className="text-sm font-medium text-slate-700 ml-1 flex items-center gap-2"><Megaphone className="w-3 h-3" /> Ad Campaign</label>
                 <Input placeholder="e.g. Summer Penthouses FB" value={formData.campaignSource} onChange={(e) => setFormData({...formData, campaignSource: e.target.value})} disabled={isSaving} />
             </div>
+            <div className="space-y-1.5">
+                <label className="text-sm font-medium text-slate-700 ml-1">Acquisition Source</label>
+                <select 
+                    className="flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all focus:bg-white disabled:opacity-50"
+                    value={formData.source}
+                    onChange={(e) => setFormData({...formData, source: e.target.value as any})}
+                    disabled={isSaving}
+                >
+                    <option value="Manual">Manual Entry</option>
+                    <option value="Facebook">Facebook Ads</option>
+                    <option value="Google">Google Ads</option>
+                    <option value="Referral">Referral</option>
+                </select>
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                  <label className="text-sm font-medium text-slate-700 ml-1">Acquisition Source</label>
-                  <select 
-                      className="flex h-11 w-full rounded-xl border border-slate-200 bg-slate-50/50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all focus:bg-white disabled:opacity-50"
-                      value={formData.source}
-                      onChange={(e) => setFormData({...formData, source: e.target.value as any})}
-                      disabled={isSaving}
-                  >
-                      <option value="Manual">Manual Entry</option>
-                      <option value="Facebook">Facebook Ads</option>
-                      <option value="Google">Google Ads</option>
-                      <option value="Referral">Referral</option>
-                  </select>
-              </div>
-              <Input label="Task Due Date" type="datetime-local" value={formData.taskDueDate} onChange={(e) => setFormData({...formData, taskDueDate: e.target.value})} disabled={isSaving} />
+          <div className="grid grid-cols-1 gap-4">
+              <Input label="Follow-up Task Due Date" type="datetime-local" value={formData.taskDueDate} onChange={(e) => setFormData({...formData, taskDueDate: e.target.value})} disabled={isSaving} />
           </div>
           <div className="relative group">
             <div className="flex justify-between items-center mb-1.5">
