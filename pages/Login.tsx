@@ -209,6 +209,18 @@ export const Login: React.FC = () => {
                                 Continue with OAuth
                             </Button>
 
+                            <Button 
+                                variant="outline" 
+                                className="w-full h-12 bg-emerald-50 border-emerald-100 text-emerald-700 rounded-xl font-bold shadow-sm hover:bg-emerald-100 transition-colors" 
+                                type="button" 
+                                onClick={() => {
+                                    localStorage.setItem('levrix_demo_mode', 'true');
+                                    window.location.reload();
+                                }}
+                            >
+                                Launch Demo Instance
+                            </Button>
+
                             <button 
                                 type="button" 
                                 onClick={() => { setIsSignUp(!isSignUp); setError(null); setMessage(null); }}

@@ -41,21 +41,26 @@ const envKey = getEnv('SUPABASE_ANON_KEY', 'VITE_SUPABASE_ANON_KEY', 'REACT_APP_
  * Security: We only use the hardcoded "Demo" credentials as an absolute last resort 
  * if no environment variables are present and no local overrides exist.
  */
-const DEFAULT_URL = 'https://aixpvqjhedmusqocvstt.supabase.co';
-const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFpeHB2cWpoZWRtdXNxb2N2c3R0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU2NTM1NDQsImV4cCI6MjA4MTIyOTU0NH0.5PpJCF_78LilVrQF5vv0372o5UKYThbFK8qC1XwQLXM';
+const DEFAULT_URL = 'https://ttbjzkvgmcorkzhrmgsy.supabase.co';
+const DEFAULT_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InR0Ymp6a3ZnbWNvcmt6aHJtZ3N5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEwODUzOTYsImV4cCI6MjA4NjY2MTM5Nn0.jdq4DR0dmfB0savMOp8sbJIJi3jQzp6DUrkpruWZsPo';
 
 const isValidUrl = (url: string | null): boolean => {
   if (!url) return false;
+  const cleanUrl = url.trim().replace(/\/$/, '');
   try {
-    const parsed = new URL(url);
+    const parsed = new URL(cleanUrl);
     return parsed.protocol === 'http:' || parsed.protocol === 'https:';
   } catch {
     return false;
   }
 };
 
-const supabaseUrl = isValidUrl(localUrl) ? localUrl! : (isValidUrl(envUrl) ? envUrl : DEFAULT_URL);
-const supabaseKey = localKey || envKey || DEFAULT_KEY;
+const getCleanUrl = (url: string): string => {
+  return url.trim().replace(/\/$/, '');
+};
+
+const supabaseUrl = isValidUrl(localUrl) ? getCleanUrl(localUrl!) : (isValidUrl(envUrl) ? getCleanUrl(envUrl) : DEFAULT_URL);
+const supabaseKey = (localKey || envKey || DEFAULT_KEY).trim();
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 export const isUsingDefaultProject = supabaseUrl === DEFAULT_URL;

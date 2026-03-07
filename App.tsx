@@ -17,6 +17,8 @@ import { GoogleGenAI, Type } from "@google/genai";
 import { BellRing, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { cn } from './lib/utils';
 
+import { INITIAL_LEADS, INITIAL_LOGS } from './services/mockData';
+
 const DEFAULT_LOGO = "";
 const METADATA_TAG = "---LEVRIX_METADATA---";
 
@@ -97,6 +99,7 @@ const App: React.FC = () => {
     companyName: 'levrix',
     logoUrl: DEFAULT_LOGO
   });
+  const [isDemoMode, setIsDemoMode] = useState(localStorage.getItem('levrix_demo_mode') === 'true');
 
   const processedLeads = useMemo(() => {
     return leads.map(lead => ({
@@ -116,6 +119,11 @@ const App: React.FC = () => {
     let mounted = true;
 
     const initializeAuth = async () => {
+      if (isDemoMode) {
+        setSession({ user: { id: 'demo-user', email: 'demo@levrix.app' } });
+        setLoading(false);
+        return;
+      }
       try {
         const { data: { session: currentSession }, error } = await supabase.auth.getSession();
         if (error) throw error;
@@ -142,6 +150,8 @@ const App: React.FC = () => {
           setLeads([]);
           setMessageLogs([]);
           setActivePage('dashboard');
+          localStorage.removeItem('levrix_demo_mode');
+          setIsDemoMode(false);
         }
       }
     });
@@ -193,6 +203,11 @@ const App: React.FC = () => {
 
   const fetchLeads = async () => {
     if (!session?.user?.id) return;
+    if (isDemoMode) {
+      setLeads(INITIAL_LEADS);
+      setIsTablesReady(true);
+      return;
+    }
     try {
         const { data, error } = await supabase
           .from('leads')
@@ -237,6 +252,10 @@ const App: React.FC = () => {
 
   const fetchLogs = async () => {
     if (!session?.user?.id) return;
+    if (isDemoMode) {
+      setMessageLogs(INITIAL_LOGS);
+      return;
+    }
     try {
         const { data, error } = await supabase
           .from('message_logs')
@@ -281,6 +300,11 @@ const App: React.FC = () => {
     
     setLeads(prev => [optimisticLead, ...prev]);
 
+    if (isDemoMode) {
+      showToast("Lead added to demo session", "success");
+      return;
+    }
+
     try {
       const isEmailValid = await validateEmailAddress(newLeadData.email);
       optimisticLead.health = { 
@@ -313,6 +337,11 @@ const App: React.FC = () => {
 
   const handleUpdateLead = async (updatedLead: Lead) => {
     if (!session?.user?.id) return;
+    if (isDemoMode) {
+      setLeads(prev => prev.map(l => l.id === updatedLead.id ? updatedLead : l));
+      showToast("Lead updated in demo session", "success");
+      return;
+    }
     try {
       const isEmailValid = await validateEmailAddress(updatedLead.email);
       if (updatedLead.health) updatedLead.health.isInvalidEmail = !isEmailValid;
@@ -488,6 +517,11 @@ const App: React.FC = () => {
     }
 
     if (newLogs.length > 0) {
+      if (isDemoMode) {
+        setMessageLogs(prev => [...newLogs.map(l => ({ ...l, id: `demo-${Date.now()}-${Math.random()}` })), ...prev]);
+        showToast(scheduledTime ? "Outreach Queued (Demo)" : "Outreach Dispatched (Demo)", 'success');
+        return;
+      }
       try {
         const { error } = await supabase.from('message_logs').insert(newLogs);
         if (error) throw error;
@@ -519,7 +553,14 @@ const App: React.FC = () => {
         }
       });
       const mockLead = JSON.parse(response.text || '{}');
-      await handleAddLead({ name: mockLead.name, email: mockLead.email, phone: mockLead.phone, source: platform === 'facebook' ? 'Facebook' : 'Google', status: 'New', stage: 'Inquiry', propertyAddress: mockLead.interest });
+      const leadData = { name: mockLead.name, email: mockLead.email, phone: mockLead.phone, source: platform === 'facebook' ? 'Facebook' : 'Google', status: 'New', stage: 'Inquiry', propertyAddress: mockLead.interest };
+      if (isDemoMode) {
+        const tempId = `demo-sync-${Date.now()}`;
+        setLeads(prev => [{ ...leadData, id: tempId, createdAt: new Date().toISOString(), user_id: session.user.id } as Lead, ...prev]);
+        showToast(`Demo Lead Synced from ${platform}`, 'success');
+        return;
+      }
+      await handleAddLead(leadData);
     } catch (err) {
       console.error("Sync failed", err);
     }
@@ -528,6 +569,10 @@ const App: React.FC = () => {
   const handleUpdateIntegrations = async (newIntegrations: Integrations) => {
     if (!session?.user?.id) return;
     setIntegrations(newIntegrations);
+    if (isDemoMode) {
+      showToast("Settings updated in demo session", "success");
+      return;
+    }
     try {
       const { error } = await supabase.from('profiles').upsert({ id: session.user.id, integrations: newIntegrations, email: session.user.email });
       if (error) throw error;
@@ -546,6 +591,12 @@ const App: React.FC = () => {
 
   const fetchProfile = async () => {
     if (!session?.user?.id) return;
+    if (isDemoMode) {
+      setIntegrations(DEFAULT_INTEGRATIONS);
+      setCurrentPlan('Starter');
+      setProfile({ fullName: 'Demo User', companyName: 'levrix demo', logoUrl: DEFAULT_LOGO });
+      return;
+    }
     try {
         const { data, error } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
         if (error && error.code === 'PGRST116') {
@@ -568,6 +619,10 @@ const App: React.FC = () => {
   const handleUpdateProfile = async (updates: Partial<Profile>) => {
     if (!session?.user?.id) return;
     setProfile(prev => ({ ...prev, ...updates }));
+    if (isDemoMode) {
+      showToast("Profile updated in demo session", "success");
+      return;
+    }
     const dbUpdates: any = { id: session.user.id };
     if (updates.fullName !== undefined) dbUpdates.full_name = updates.fullName;
     if (updates.companyName !== undefined) dbUpdates.company_name = updates.companyName;
@@ -583,8 +638,12 @@ const App: React.FC = () => {
 
   const fetchTeam = async () => {
     if (!session?.user?.id) return;
+    const self: TeamMember = { id: session.user.id, email: session.user.email, name: isDemoMode ? 'Demo Admin' : 'You', role: 'Admin', status: 'Active', joinedAt: new Date().toISOString() };
+    if (isDemoMode) {
+      setTeamMembers([self]);
+      return;
+    }
     try {
-        const self: TeamMember = { id: session.user.id, email: session.user.email, name: 'You', role: 'Admin', status: 'Active', joinedAt: new Date().toISOString() };
         const { data, error } = await supabase.from('team_members').select('*').eq('owner_id', session.user.id);
         if (error) { setTeamMembers([self]); return; }
         const others = (data || []).map((m: any) => ({ id: m.id, email: m.email, name: m.name, role: m.role, status: m.status, joinedAt: m.created_at }));
@@ -596,6 +655,8 @@ const App: React.FC = () => {
   };
 
   const handleLogout = async () => { 
+    localStorage.removeItem('levrix_demo_mode');
+    setIsDemoMode(false);
     try { await supabase.auth.signOut(); } finally {
         setSession(null); setLeads([]); setMessageLogs([]); setActivePage('dashboard');
     }
